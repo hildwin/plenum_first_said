@@ -1,7 +1,11 @@
 import json
 import logging
+import re
 from api_functions import get_url_content
 import datetime
+
+# Theme für das Zitat-Bild: 'l' = hell (light), 'd' = dunkel (dark)
+QUOTE_IMAGE_THEME = 'l'
 
 # Wenn noch nicht bei OPTV, dann True
 def get_op_response(url):
@@ -30,6 +34,105 @@ def double_check_newness(word, keys):
     else:
         return True
 
+
+# Erzeugt einen 4-Zeichen-Hash für ein Wort: erster Buchstabe groß + nächste 3 Buchstaben klein.
+# Repliziert das JavaScript: root.substr(0, 1).toUpperCase() + root.substr(1, 3)
+def generate_fragment_hash(text):
+    # Satzzeichen und Leerzeichen entfernen, in Kleinbuchstaben umwandeln
+    root = re.sub(r'[^\w\s]|_', '', text)
+    root = re.sub(r'\s+', '', root).lower().strip()
+    
+    if len(root) == 0:
+        return ''
+    
+    # Erster Buchstabe groß + nächste 3 Buchstaben
+    return root[0].upper() + root[1:4]
+
+
+# Erzeugt den 'f'-Parameter aus dem Satztext.
+# Format: prefix,suffix wobei jeder der Hash der ersten/letzten 3 Wörter ist.
+def generate_fragment_param(sentence_text):
+    words = sentence_text.strip().split()
+    
+    if len(words) < 2:
+        return None
+    
+    # Erste 3 Wörter für Präfix
+    prefix_words = words[:3]
+    prefix = ''.join(generate_fragment_hash(w) for w in prefix_words)
+    
+    # Letzte 3 Wörter für Suffix
+    suffix_words = words[-3:] if len(words) >= 3 else words
+    suffix = ''.join(generate_fragment_hash(w) for w in suffix_words)
+    
+    if prefix and suffix:
+        return f"{prefix},{suffix}"
+    return None
+
+
+# Findet den ersten Satz, der das Wort enthält und gibt Timing + Fragment zurück.
+# Durchsucht die textContents-Struktur aus der API-Antwort.
+def find_word_in_text(media_item, word):
+    try:
+        # textContents kann direkt im Suchergebnis oder unter 'attributes' sein
+        if 'attributes' in media_item:
+            text_contents = media_item['attributes'].get('textContents', [])
+        else:
+            text_contents = media_item.get('textContents', [])
+        
+        word_lower = word.lower()
+        
+        for text_content in text_contents:
+            text_body = text_content.get('textBody', [])
+            for paragraph in text_body:
+                for sentence in paragraph.get('sentences', []):
+                    sentence_text = sentence.get('text', '')
+                    if word_lower in sentence_text.lower():
+                        time_start = sentence.get('timeStart')
+                        time_end = sentence.get('timeEnd')
+                        if time_start is not None and time_end is not None:
+                            fragment = generate_fragment_param(sentence_text)
+                            if fragment:
+                                return {
+                                    'timeStart': time_start,
+                                    'timeEnd': time_end,
+                                    'fragment': fragment
+                                }
+    except (KeyError, TypeError) as e:
+        logging.debug(f'Fehler beim Suchen des Wortes im Text: {e}')
+    return None
+
+
+# Findet Hauptredner:in (main-speaker) in der Personenliste.
+# Gibt None zurück, wenn kein main-speaker gefunden wird.
+def find_main_speaker(people_data):
+    if not people_data:
+        return None
+    
+    for person in people_data:
+        # Prüfe ob diese Person Hauptredner:in ist
+        context = person.get('attributes', {}).get('context', '')
+        if context == 'main-speaker':
+            return person
+    
+    # Kein main-speaker gefunden (z.B. nur Präsident:in/Vizepräsident:in vorhanden)
+    return None
+
+
+# Findet die Fraktion der Hauptrednerin in der Organisationsliste.
+# Die Fraktion hat den context "main-speaker-faction".
+def find_main_speaker_faction(organisations_data):
+    if not organisations_data:
+        return None
+    
+    for org in organisations_data:
+        context = org.get('attributes', {}).get('context', '')
+        if context == 'main-speaker-faction':
+            return org
+    
+    return None
+
+
 # Checkt zunächst ob Wort gefunden werden kann und sucht dann nach den Infos
 def check_for_infos(word, keys):
     datum = keys[b'datum'].decode('UTF-8')
@@ -50,20 +153,54 @@ def check_for_infos(word, keys):
         return False
 
 
-# Gibt ein dicitionary mit den Metadaten von OPTV aus. 
+# Gibt ein dictionary mit den Metadaten von OPTV aus.
+# Nutzt die textContents aus dem Suchergebnis für das Zitat-Bild (kein zusätzlicher API-Aufruf nötig).
+# Wenn kein main-speaker gefunden wird, sind speaker und party None.
 def get_metadata(document_data, word):
     try:
-        type = document_data['data'][0]['type']
-        id = document_data['data'][0]['id']
+        media_item = document_data['data'][0]
+        type = media_item['type']
+        id = media_item['id']
 
-        link = 'https://de.openparliament.tv/' + type + '/' + id + '?q=' + word
+        # Standard-Link ohne Zitat-Parameter
+        link = f'https://de.openparliament.tv/{type}/{id}?q={word}'
+        
+        # Versuche, Timing-Infos aus dem Suchergebnis zu extrahieren (bereits vorhanden, kein extra API-Aufruf)
+        sentence_info = find_word_in_text(media_item, word)
+        
+        if sentence_info:
+            # URL mit Timing und Fragment für Zitat-Bild erstellen
+            # Parameter: t = Zeitstempel, f = Fragment-Hash, c = Theme (l=hell, d=dunkel)
+            link = (f'https://de.openparliament.tv/{type}/{id}'
+                   f'?t={sentence_info["timeStart"]},{sentence_info["timeEnd"]}'
+                   f'&f={sentence_info["fragment"]}&c={QUOTE_IMAGE_THEME}')
+            logging.info(f'Zitat-Bild URL erstellt: {link}')
 
-        speaker = document_data['data'][0]['relationships']['people']['data'][0]['attributes']['label']
-        party = document_data['data'][0]['relationships']['people']['data'][0]['attributes']['party']['label']
+        # Suche nach Hauptredner:in (nicht einfach ersten Eintrag im Array nehmen)
+        people_data = media_item.get('relationships', {}).get('people', {}).get('data', [])
+        main_speaker = find_main_speaker(people_data)
+        
+        # Suche nach der Fraktion der Hauptrednerin
+        organisations_data = media_item.get('relationships', {}).get('organisations', {}).get('data', [])
+        main_faction = find_main_speaker_faction(organisations_data)
+        
+        if main_speaker:
+            speaker = main_speaker['attributes']['label']
+            # Fraktion kommt aus der Organisation mit context "main-speaker-faction"
+            if main_faction:
+                party = main_faction['attributes']['label']
+            else:
+                party = None
+        else:
+            # Hauptredner:in nicht gefunden - speaker und party sind None
+            # Der Bot sollte in diesem Fall den "wurde gesagt von" Teil weglassen
+            speaker = None
+            party = None
+            logging.info(f'Kein main-speaker für Media {id} gefunden - Sprecher-Info wird weggelassen')
 
         metadata = {
             'link': link,
-            'speaker' : speaker,
+            'speaker': speaker,
             'party': party,
         }
 
