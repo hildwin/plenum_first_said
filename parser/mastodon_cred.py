@@ -68,8 +68,12 @@ def toot_word(word, keys, metadata):
         patience = 0
         
         # Erstelle Kontext-Nachricht (mit oder ohne Redner:in)
-        context_message = build_context_message(word, keys, metadata)
-        
+        try:
+            context_message = build_context_message(word, keys, metadata)
+        except Exception as e:
+            logging.exception(e)
+            return False
+
         while True:
             if patience > 10:
                 logging.info('Maximale Versuche wurde überschritten.')

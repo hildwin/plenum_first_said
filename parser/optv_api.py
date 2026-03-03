@@ -38,8 +38,8 @@ def double_check_newness(word, keys):
 # Erzeugt einen 4-Zeichen-Hash für ein Wort: erster Buchstabe groß + nächste 3 Buchstaben klein.
 # Repliziert das JavaScript: root.substr(0, 1).toUpperCase() + root.substr(1, 3)
 def generate_fragment_hash(text):
-    # Satzzeichen und Leerzeichen entfernen, in Kleinbuchstaben umwandeln
-    root = re.sub(r'[^\w\s]|_', '', text)
+    # Satzzeichen, Ziffern und Leerzeichen entfernen, in Kleinbuchstaben umwandeln
+    root = re.sub(r'[^\w\s]|[_\d]', '', text)
     root = re.sub(r'\s+', '', root).lower().strip()
     
     if len(root) == 0:
@@ -170,9 +170,10 @@ def get_metadata(document_data, word):
         
         if sentence_info:
             # URL mit Timing und Fragment für Zitat-Bild erstellen
-            # Parameter: t = Zeitstempel, f = Fragment-Hash, c = Theme (l=hell, d=dunkel)
+            # Parameter: q = Suchwort, t = Zeitstempel, f = Fragment-Hash, c = Theme (l=hell, d=dunkel)
             link = (f'https://de.openparliament.tv/{type}/{id}'
-                   f'?t={sentence_info["timeStart"]},{sentence_info["timeEnd"]}'
+                   f'?q={word}'
+                   f'&t={sentence_info["timeStart"]},{sentence_info["timeEnd"]}'
                    f'&f={sentence_info["fragment"]}&c={QUOTE_IMAGE_THEME}')
             logging.info(f'Zitat-Bild URL erstellt: {link}')
 
