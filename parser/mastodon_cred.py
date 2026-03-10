@@ -45,13 +45,17 @@ def toot_word(word, keys, metadata):
     patience = 0
     
     #Posts Word
+    is_afd = metadata and metadata.get('party') == 'AfD'
     while True:
         if patience > 10:
             logging.info('Maximale Versuche wurde überschritten.')
             return False
         else:
-            try: 
-                toot_status = MastodonAPI.toot(word)
+            try:
+                if is_afd:
+                    toot_status = MastodonAPI.status_post(word, spoiler_text='Wort von der AfD', sensitive=True)
+                else:
+                    toot_status = MastodonAPI.toot(word)
             except Exception as e:
                 logging.exception(e)
                 sleep(60)

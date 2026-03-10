@@ -103,33 +103,24 @@ def find_word_in_text(media_item, word):
     return None
 
 
-# Findet Hauptredner:in (main-speaker) in der Personenliste.
-# Gibt None zurück, wenn kein main-speaker gefunden wird.
-def find_main_speaker(people_data):
-    if not people_data:
-        return None
-    
-    for person in people_data:
-        # Prüfe ob diese Person Hauptredner:in ist
-        context = person.get('attributes', {}).get('context', '')
-        if context == 'main-speaker':
-            return person
-    
-    # Kein main-speaker gefunden (z.B. nur Präsident:in/Vizepräsident:in vorhanden)
+# Findet den Namen des Hauptredners/der Hauptrednerin aus den textContents.
+# Der speakerstatus "main-speaker" ist im textBody der Rede gesetzt.
+def find_main_speaker_from_text(media_item):
+    text_contents = media_item.get('attributes', {}).get('textContents', [])
+    for tc in text_contents:
+        for para in tc.get('textBody', []):
+            if para.get('speakerstatus') == 'main-speaker' and para.get('speaker'):
+                return para['speaker']
     return None
 
 
-# Findet die Fraktion der Hauptrednerin in der Organisationsliste.
-# Die Fraktion hat den context "main-speaker-faction".
-def find_main_speaker_faction(organisations_data):
-    if not organisations_data:
-        return None
-    
-    for org in organisations_data:
-        context = org.get('attributes', {}).get('context', '')
-        if context == 'main-speaker-faction':
-            return org
-    
+# Findet die Partei für einen Redner/eine Rednerin anhand des Namens aus der Personenliste.
+def find_party_for_speaker(people_data, speaker_name):
+    for person in people_data:
+        if person.get('attributes', {}).get('label') == speaker_name:
+            party = person['attributes'].get('party', {})
+            if party and party.get('label'):
+                return party['label']
     return None
 
 
@@ -177,25 +168,15 @@ def get_metadata(document_data, word):
                    f'&f={sentence_info["fragment"]}&c={QUOTE_IMAGE_THEME}')
             logging.info(f'Zitat-Bild URL erstellt: {link}')
 
-        # Suche nach Hauptredner:in (nicht einfach ersten Eintrag im Array nehmen)
+        # Suche nach Hauptredner:in über speakerstatus im textBody
         people_data = media_item.get('relationships', {}).get('people', {}).get('data', [])
-        main_speaker = find_main_speaker(people_data)
-        
-        # Suche nach der Fraktion der Hauptrednerin
-        organisations_data = media_item.get('relationships', {}).get('organisations', {}).get('data', [])
-        main_faction = find_main_speaker_faction(organisations_data)
-        
-        if main_speaker:
-            speaker = main_speaker['attributes']['label']
-            # Fraktion kommt aus der Organisation mit context "main-speaker-faction"
-            if main_faction:
-                party = main_faction['attributes']['label']
-            else:
-                party = None
+        speaker = find_main_speaker_from_text(media_item)
+
+        if speaker:
+            party = find_party_for_speaker(people_data, speaker)
         else:
             # Hauptredner:in nicht gefunden - speaker und party sind None
             # Der Bot sollte in diesem Fall den "wurde gesagt von" Teil weglassen
-            speaker = None
             party = None
             logging.info(f'Kein main-speaker für Media {id} gefunden - Sprecher-Info wird weggelassen')
 

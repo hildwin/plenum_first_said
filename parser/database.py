@@ -1,15 +1,53 @@
-import redis
 import logging
+import os
+
+import redis
+from dotenv import load_dotenv
+
+load_dotenv()
+
+
+def _redis_port():
+    port = os.getenv('REDIS_PORT', '6379')
+    try:
+        return int(port)
+    except ValueError:
+        logging.warning("Ungültiger REDIS_PORT '%s'. Fallback auf 6379.", port)
+        return 6379
+
+
+def _redis_client(db):
+    redis_url = os.getenv('REDIS_URL', '').strip()
+    redis_socket = os.getenv('REDIS_SOCKET', '').strip()
+    redis_host = os.getenv('REDIS_HOST', 'localhost').strip()
+    redis_password = os.getenv('REDIS_PASSWORD', '').strip() or None
+
+    if redis_url:
+        return redis.Redis.from_url(redis_url, db=db)
+
+    if redis_socket:
+        return redis.Redis(
+            unix_socket_path=redis_socket,
+            db=db,
+            password=redis_password,
+        )
+
+    return redis.Redis(
+        host=redis_host,
+        port=_redis_port(),
+        db=db,
+        password=redis_password,
+    )
 
 
 # Tatsächliche Datenbank für Wörter
-r = redis.StrictRedis(host='localhost', port=6379, db=0)
+r = _redis_client(0)
 
 # Datenbank für zu postende Wörter
-postRedis = redis.StrictRedis(host='localhost', port=6379, db=1)
+postRedis = _redis_client(1)
 
 # Datenbank mit geposteten tweets
-pastRedis = redis.StrictRedis(host='localhost', port=6379, db=2)
+pastRedis = _redis_client(2)
 
 # Wort abgleichen und zur Datenbank hinzufügen
 def similiar_word(word):
@@ -134,6 +172,5 @@ def delete_from_queue(word):
         return True
     else: 
         return False
-
 
 

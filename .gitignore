@@ -1,17 +1,29 @@
+# Python-generated files
+__pycache__/
 parser/__pycache__/*
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+
+# Mac
 **/.DS_Store
 .DS_Store
 profil_context.pxd/
 *.png
 .venv/*
 .vscode/*
+
+# Project
 parser/archive/*
 .*
-parser/utilities/mastodon_starter.py
 .env
 venv/*
 parser/plenarlog.log
 *.xml
-
 parser/post.log
-parser/mastodon_cred.py

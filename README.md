@@ -43,8 +43,8 @@ Hierbei gibt es einige Limitierungen. Da die Protokolle weiterhin nicht vollkomm
 [Webseite zum Projekt](https://openparliament.tv/)  
 [GitHub](https://github.com/OpenParliamentTV)  
 
-## Mastodon und Twitter
-Für den Zugang zu Twitter benutze ich die Library [Tweepy](https://www.tweepy.org/) und für Mastodon benutze ich [Mastodon.py](https://github.com/halcy/Mastodon.py). Dort gibt es auch eine Dokumentation, wie man die Keys richtig erstellt. 
+## Mastodon
+Für den Zugang zu Mastodon benutze ich [Mastodon.py](https://github.com/halcy/Mastodon.py). Dort gibt es auch eine Dokumentation, wie man die Keys richtig erstellt. 
 
 Die Mastodon Account findet man je unter <a rel="me" href="https://mastodon.social/@BT_First_Said">@BT_First_Said@mastodon.social</a> und <a rel="me" href="https://mastodon.social/@FSBT_Kontext">@FSBT_Kontext@mastodon.social</a>.
 
@@ -67,7 +67,7 @@ Einige Schwierigkeiten machen hier immer noch die Flexion von Wörtern. Grundreg
 ## Lizenz und Danksagung
 
 Das Projekt steht unter der [GNU General Public License 3](https://www.gnu.org/licenses/gpl-3.0.de.html).  
-Das Projekt entsteht im Rahmen eines Nachwuchs-Stipendiums des [Bayerische Staatministeriums für Wissenschaft und Kunst](https://www.stmwk.bayern.de/) zur Förderung der künstlerischen Entfaltung. Außerdem noch ein großes Danke an [jk](https://github.com/hejjoe), der meinen Bot deutlich aufmerksamer beobachtet als ich selbst. 
+Das Projekt entsteht im Rahmen eines Nachwuchs-Stipendiums des [Bayerische Staatministeriums für Wissenschaft und Kunst](https://www.stmwk.bayern.de/) zur Förderung der künstlerischen Entfaltung. Außerdem noch ein großes Danke an [jk](https://github.com/hejjoe), der meinen Bot deutlich aufmerksamer beobachtet als ich selbst. 
 
 
 
