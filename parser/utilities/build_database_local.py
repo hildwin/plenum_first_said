@@ -1,4 +1,9 @@
 import os
+import sys
+
+# Erlaubt den Import von Modulen aus dem parser/-Verzeichnis, wenn dieses
+# Skript direkt ausgefuehrt wird (python utilities/build_database_local.py)
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), '..'))
 
 import database
 import xml_processing

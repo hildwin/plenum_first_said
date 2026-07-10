@@ -1,6 +1,11 @@
 import logging
 import os
+import sys
 import time
+
+# Erlaubt den Import von Modulen aus dem parser/-Verzeichnis, wenn dieses
+# Skript direkt ausgefuehrt wird (python utilities/download_new_format_xml.py)
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), '..'))
 
 from dotenv import load_dotenv
 
