@@ -27,3 +27,4 @@ venv/*
 parser/plenarlog.log
 *.xml
 parser/post.log
+parser/output/*

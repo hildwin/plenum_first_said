@@ -1,22 +1,28 @@
 import os
-#from progressbar import printProgressBar
+
+import database
 import xml_processing
 from text_parse import process_woerter
 
+# Enthaelt manuell von der Open-Data-Seite heruntergeladene Plenarprotokolle
+ARCHIVE_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', 'archive')
+
+files = sorted(f for f in os.listdir(ARCHIVE_DIR) if f.endswith('.xml'))
 
 wordnum = 0
-directory = 'parser/archive/'
-files = os.listdir(directory)
-total = len(files)
 
-files.sort(key=lambda x: int(x.split('.')[0]))
+for filename in files:
+    filepath = os.path.join(ARCHIVE_DIR, filename)
+    xml_file = xml_processing.parse(filepath)
+    id = filename[:-4]  # ".xml" abschneiden
 
-for i, filename in enumerate(files):
-    if filename.endswith(".xml"):
-        filepath = directory + filename
-        xml_file = xml_processing.parse(filepath)
-        wordnum += process_woerter(xml_file, filename.strip('.xml'))   
-    print(filename)
-    # printProgressBar(i + 1, total, prefix = 'Progress:', suffix = 'Complete', length = 50)
+    metadata = xml_processing.get_protokoll_metadata(xml_file)
+    if metadata:
+        database.r.hset('protokoll:' + id, mapping=metadata)
 
-print("Fertig")
+    new_words = process_woerter(xml_file, id) or []
+    wordnum += len(new_words)
+
+    print(filename, '->', len(new_words), 'neue Woerter')
+
+print('Fertig.', wordnum, 'neue Woerter insgesamt.')

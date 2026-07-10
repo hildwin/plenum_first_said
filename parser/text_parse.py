@@ -4,7 +4,8 @@ import re
 from string import punctuation
 import xml_processing
 import difflib
-from database import add_to_queue, check_newness
+import export
+from database import check_newness
 
 # Beginn des Dokumentes finden mit Rechtschreibfehlern. 
 def find_beginn(text):
@@ -22,19 +23,21 @@ def dehyphenate(text):
     lines = text.split('\n')
     for num, line in enumerate(lines):
         if line.endswith('-'):
+            # Keine naechste Zeile vorhanden, oder naechste Zeile ist leer ->
+            # nichts zum Zusammenfuegen da, unveraendert lassen.
+            if num + 1 >= len(lines) or not lines[num+1].split():
+                continue
             try:
                 # the end of the word is at the start of next line
                 end = lines[num+1].split()[0]
                 # we remove the - and append the end of the word
                 lines[num] = line[:-1] + end
-                # and remove the end of the word and possibly the 
+                # and remove the end of the word and possibly the
                 # following space from the next line
                 lines[num+1] = lines[num+1][len(end)+1:]
             except Exception as e:
                 logging.exception(e)
                 logging.info('Line 1: ' + lines[num])
-                if len(lines) <= num:
-                    logging.info('Line 2: ' + lines[num+1])
                 continue
 
     return '\n'.join(lines)
@@ -104,24 +107,68 @@ def wordsfilter(words, id):
         
     return new_words
 
+# Absätze in Sätze splitten (einfache Heuristik ohne Abkürzungserkennung -
+# reicht aus, um ein neues Wort im vollständigen Satzkontext zu zeigen).
+SATZ_ENDE = re.compile(r'(?<=[.!?])\s+')
+
+def split_saetze(text):
+    return [satz for satz in SATZ_ENDE.split(text.strip()) if satz]
+
+
+# Verarbeitet die strukturierten Redebeiträge (neues Protokollformat):
+# jeder gefundene neue Wort-Treffer trägt Satzkontext und Sprecherzuordnung.
+def process_redebeitraege(redebeitraege, id):
+
+    new_words = []
+
+    for beitrag in redebeitraege:
+        for satz in split_saetze(beitrag['text']):
+            text = pre_split_clean(satz)
+            text = dehyphenate(text)
+            words = wordsplitter(text)
+            words = de_enumaration(words)
+
+            for word in wordsfilter(words, id):
+                new_words.append({
+                    'word': word,
+                    'satz': satz,
+                    'sprecher_typ': beitrag['typ'],
+                    'sprecher': beitrag['sprecher'],
+                    'fraktion': beitrag['fraktion'],
+                    'ist_zwischenfrage': beitrag['ist_zwischenfrage'],
+                })
+
+    return new_words
+
+
 # Hauptfunktion des Moduls für die Aufbereitung und Trennung der Wörter
 def process_woerter (xml_file, id):
 
+    redebeitraege = xml_processing.get_redebeitraege(xml_file)
+
+    if redebeitraege:
+        return process_redebeitraege(redebeitraege, id)
+
+    # Fallback für das alte Protokollformat (relevant beim Korpus-Erstaufbau
+    # historischer Protokolle ohne <sitzungsverlauf>-Struktur) - liefert
+    # keinen Satzkontext/keine Sprecherzuordnung.
     raw_text = xml_processing.getText(xml_file)
 
     if not raw_text:
         return False
-    
-    # Verarbeitung des String
+
     text = find_beginn(raw_text)
     text = pre_split_clean(text)
     text = dehyphenate(text)
 
-    # Verarbeitung des Wort-Arrays
     words = wordsplitter(text)
     words = de_enumaration(words)
 
-    return(wordsfilter(words, id))
+    return [
+        {'word': word, 'satz': None, 'sprecher_typ': None, 'sprecher': None,
+         'fraktion': None, 'ist_zwischenfrage': False}
+        for word in wordsfilter(words, id)
+    ]
 
 
 # Check ob es ein valides Wort ist
@@ -129,7 +176,7 @@ def ok_word(word):
 
     # Wort hat gleiche Zeichen mehrmals hintereinander
     regmul = re.compile('([A-z])\1{4,}')
-    # Wort hat nicht nur am Anfag Großbuchstaben
+    # Wort hat nicht nur am Anfang Großbuchstaben
     regsmall = re.compile('[A-z]{1}[a-z]*[A-Z]+[a-z]*')
 
     if regmul.search(word) or regsmall.search(word):
@@ -148,34 +195,37 @@ def check_word(word, id):
     else:
         return False
 
-# Aussortieren von Wörtern für Postings
+# Aussortieren von Wörtern und Export der Überlebenden (CSV + DB)
 def prune(new_words, id):
-    
-    pruned_words = find_matches(new_words)
+
+    pruned_entries = find_matches(new_words)
 
     # Entfernt Kompositionen, die eine Silbentrennung in der Mitte der Zeile sein könnten.
-    for word in pruned_words:
+    for entry in pruned_entries:
         regcomp = re.compile('[a-z]+[-–][a-z]+')
-        if regcomp.search(word) or len(word) < 5:
+        if regcomp.search(entry['word']) or len(entry['word']) < 5:
             continue
         else:
-            add_to_queue(word, id)
+            export.append_row(entry, id)
 
 
 
 # Recursive match finding der Liste, um Index-Fehler zu vermeiden
-def find_matches(new_words):
-    for word in new_words:
-        matches = difflib.get_close_matches(word, new_words, n=4)
-        
+def find_matches(entries):
+    woerter = [entry['word'] for entry in entries]
+
+    for entry in entries:
+        matches = difflib.get_close_matches(entry['word'], woerter, n=4)
+
         if matches and len(matches) > 1:
             for match in matches:
-                if match == word:
+                if match == entry['word']:
                     continue
-                new_words.remove(match)
-            find_matches(new_words)
+                entries[:] = [e for e in entries if e['word'] != match]
+                woerter[:] = [w for w in woerter if w != match]
+            find_matches(entries)
             break
-    return new_words
+    return entries
 
 if __name__ == "__main__":
     file = '#'
