@@ -24,7 +24,6 @@ Entdeckt durch Stichproben des Nutzers gegen historisches Wissen (`wort_herkunft
 - **Iteration 2:** Auch die Fallback-Suche nach dem bloßen Wort "Beginn" (ohne Doppelpunkt) ist unzuverlässig, da "Beginn" ein gewöhnliches deutsches Wort ist, das mitten in einer Rede vorkommen kann (z.B. "Ich glaube am Beginn unserer Arbeit ..."). Betraf Sitzung 1/WP1 ("Alterspräsident" wurde fälschlich Sitzung 34 zugeordnet, weil "Beginn" zufällig bei 79% der Rede auftauchte).
 - **Finale Lösung:** Nur der eindeutige Marker `"Beginn:"` (mit Doppelpunkt) wird noch gesucht. Wird er nicht gefunden, bleibt der **komplette Text erhalten** statt zu raten — bewusst konservativ, da über 75+ Jahre Protokolle keine verlässliche, einheitliche Formulierung für "Sitzung eröffnet" existiert (drei verschiedene Formulierungen allein in den ersten drei Sitzungen von WP1 gefunden: "Beginn:", "... eröffnet", "... eingeleitet mit der Ouvertüre ...").
 - **Tragweite:** `01001.xml` liefert dadurch jetzt **1296 statt 405 Wörter** — der Bug hat bei betroffenen Dokumenten rund 70% des Inhalts verschluckt. Betraf vermutlich viele Protokolle aus der Flat-Text-Ära (WP1 bis Mitte WP19).
-- **Konsequenz:** Der Korpus-Aufbau musste deswegen zweimal neu gestartet werden (siehe unten) — beide Male sicher/idempotent möglich, da `check_newness()`/`add_to_database()` rein additiv sind und `check_age()` frühere Fundstellen automatisch nachträglich korrigiert.
 
 ## Weitere Bugfixes (gepusht)
 
@@ -36,28 +35,15 @@ Entdeckt durch Stichproben des Nutzers gegen historisches Wissen (`wort_herkunft
 
 ## Neu: MdB-Namensfilter (gepusht)
 
-Auf Vorschlag des Nutzers: Namen von Abgeordneten sind technisch "neue Wörter", aber kein interessanter Fund für die Review-CSV.
+Namen von Abgeordneten sind technisch "neue Wörter", aber kein interessanter Fund für die Review-CSV.
 
 - `parser/utilities/load_namen.py`: liest Vor-/Nachnamen aus `MDB_STAMMDATEN.XML` (offizielle Bundestag-Stammdaten seit WP1, inkl. Namenshistorie), füllt Redis-Set `bekannte_namen`. Unterstützt lokale Datei **und** direkten Download (`--url`) von `https://www.bundestag.de/resource/blob/472878/MdB-Stammdaten.zip` (Blob-URL evtl. nicht dauerhaft stabil — Skript scheitert bei Downloadfehlern laut mit Exit-Code 1 statt still eine veraltete Liste zu behalten).
 - `database.ist_bekannter_name()` + Prüfung in `prune()`: **nur der Export wird bereinigt**, der Korpus selbst (`word:*`) bleibt unverändert — Namen bleiben normal per `wort_herkunft.py` auffindbar, tauchen aber nicht in der CSV/DB auf. Verifiziert (Kölbl wird korrekt getrackt, aber nicht exportiert).
 - Empfehlung für Wartung: ca. 1x/Monat `load_namen.py --url` erneut laufen lassen (rein additiv, sicher wiederholbar) — z.B. per Cron.
 
-## Neu: `wort_herkunft.py` (gepusht)
+## Neu: `wort_herkunft.py` 
 
 Utility zum Nachschlagen, in welcher Sitzung/WP ein Korpus-Wort zuerst auftauchte (Einzelabfrage pro Wort, oder Gesamtübersicht nach Wahlperiode). War maßgeblich dafür, die beiden `find_beginn()`-Bugs überhaupt zu entdecken.
-
-## Erstaufbau-Status
-
-- **Downloads abgeschlossen:** WP21 fertig, WP20 (214 dl/vorhanden, 44 übersprungen), WP19 (239/52, deckt sich mit `numFound: 291`), WP1–18 manuell von Open-Data per FileZilla übertragen. Kompletter historischer Bestand (WP1–21) liegt in `parser/archive/` auf `srvrapa`.
-- **`build_database_local.py` läuft zum dritten Mal** (Stand jetzt, Nutzer lässt es unbeaufsichtigt laufen): erste zwei Durchläufe mit noch fehlerhaftem `find_beginn()` gestartet und nach Fund/Fix jeweils abgebrochen + neu gestartet. Dritter Lauf nutzt den finalen Fix. `dbsize` zuletzt bei 165.556 und wachsend.
-- **Nach Abschluss unbedingt stichprobenartig gegenprüfen** (`wort_herkunft.py <wort>` gegen bekannte historische Fakten) — hat sich als sehr wertvoll erwiesen, um versteckte Extraktionsfehler zu finden.
-
-## Deployment-Stand
-
-- Repo als Fork: `github.com/hildwin/plenum_first_said` (kein Schreibzugriff auf `ungeschneuer/plenum_first_said` — Remotes: `origin`=Fork, `upstream`=Original). PR gegen Upstream noch nicht entschieden.
-- `srvrapa`: LXC-Container auf Proxmox (Debian). Repo geklont, `uv sync`, `.env` mit `BUNDESTAG_API_KEY` eingerichtet.
-- Redis eingerichtet und getestet (AOF+RDB nach `DEPLOYMENT.md`, Autostart aktiviert, Verbindung bestätigt). `vm.overcommit_memory=1` in diesem LXC-Container nicht setzbar (host-weiter Kernel-Parameter) — bewusst übersprungen, unkritisch bei diesem Datenvolumen.
-- Cron für `plenar.py` noch nicht eingerichtet (bewusst erst nach abgeschlossenem, verifiziertem Korpus-Aufbau).
 
 ## Weiterhin offen
 
@@ -67,9 +53,7 @@ Utility zum Nachschlagen, in welcher Sitzung/WP ein Korpus-Wort zuerst auftaucht
 
 ## Nächste Schritte
 
-1. **Sofort:** Dritten Durchlauf von `build_database_local.py` abwarten (`utilities/build_run3.out`).
-2. Stichprobenartig mit `wort_herkunft.py` gegen weitere bekannte historische Fakten gegenprüfen, um sicherzugehen, dass keine weiteren `find_beginn()`-artigen Überraschungen mehr auftauchen.
-3. `meta:id` in Redis setzen.
-4. Cron für `plenar.py` einrichten (alle 12h, z.B. 10/22 Uhr — README bereits entsprechend angepasst) und optional `load_namen.py --url` monatlich.
-5. Entscheiden: PR gegen `ungeschneuer/plenum_first_said` öffnen oder vorerst nur eigener Fork.
-6. Danach: LLM-Klassifikation (Schritt 2).
+1. Stichprobenartig mit `wort_herkunft.py` gegen weitere bekannte historische Fakten gegenprüfen, um sicherzugehen, dass keine weiteren `find_beginn()`-artigen Überraschungen mehr auftauchen.
+2. `meta:id` in Redis setzen.
+3. Cron für `plenar.py` einrichten (alle 12h, z.B. 10/22 Uhr — README bereits entsprechend angepasst) und optional `load_namen.py --url` monatlich.
+4. Danach: LLM-Klassifikation (Schritt 2).
