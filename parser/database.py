@@ -73,12 +73,15 @@ def similiar_word(word):
     if word.endswith(('s','n', 'e')):
         pipe.hget('word:' + word[:-1], 'word')
     
-    if word.endswith(('’s', 'in', '’n', 'er', 'en', 'es', 'se')):
+    # "in" bewusst nicht (mehr) geprueft: gegenderte Formen (z.B. "Bundeskanzlerin",
+    # "Alterspraesidentin") sollen als eigenstaendiges neues Wort erkannt werden,
+    # nicht als blosse Variante der maennlichen Form unterdrueckt werden.
+    if word.endswith(('’s', '’n', 'er', 'en', 'es', 'se')):
         pipe.hget('word:' + word[:-2], 'word')
 
     if word.endswith(('ern')):
         pipe.hget('word:' + word[:-3], 'word')
-    
+
     if word.endswith(('m')):
         pipe.hget('word:' + word[:-1] + 'n', 'word')
 
@@ -89,10 +92,9 @@ def similiar_word(word):
         pipe.hget('word:' + word[:-2] + 'er', 'word')
         pipe.hget('word:' + word[:-2] + 'e', 'word')
         pipe.hget('word:' + word[:-2] + 't', 'word')
-    
-    # Glücklicherweise wird das Gendern Standard. Darum wird es nicht mehr in die Queue eingefügt.
-    if word.endswith(('innen')):
-        pipe.hget('word:' + word[:-5], 'word')
+
+    # "innen"-Pluralform (z.B. "Kanzlerinnen") wird aus demselben Grund nicht
+    # mehr geprueft - gegenderte Formen sollen als neues Wort durchgehen.
 
     return pipe.execute()
 
