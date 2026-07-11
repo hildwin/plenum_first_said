@@ -51,16 +51,6 @@ Aus Gründen der Unterhaltung werden einige Worte aussortiert, die zwar tatsäch
 - Wörter unter 4 Buchstaben
 - Gesetzesabkürzungen
 
-Einige Schwierigkeiten machen hier immer noch die Flexion von Wörtern. Grundregeln der Grammatik sind als Filter hardgecodet, jedoch werden dadurch nicht alle Begriffe erfasst. Lemmatization-Pakete wie HanTa, Spacy und Simplemma kommmen mit Neologismen oder eher seltenen Wörtern wie 'Buttersäureanschläge' nicht wirklich zurecht. 
-
-## TODOs
-- [X] Sprecher:in im Kontext mit erwähnen ([#5](https://github.com/ungeschneuer/plenum_first_said/pull/5))
-- [X] Weitere Verfeinerung der Wort-Normalisierung ([#8](https://github.com/ungeschneuer/plenum_first_said/pull/8)). 
-
-## Lizenz und Danksagung
-
-Das Projekt steht unter der [GNU General Public License 3](https://www.gnu.org/licenses/gpl-3.0.de.html).  
-Das Projekt entsteht im Rahmen eines Nachwuchs-Stipendiums des [Bayerische Staatministeriums für Wissenschaft und Kunst](https://www.stmwk.bayern.de/) zur Förderung der künstlerischen Entfaltung. Außerdem noch ein großes Danke an [jk](https://github.com/hejjoe), der meinen Bot deutlich aufmerksamer beobachtet als ich selbst. 
 
 
 
