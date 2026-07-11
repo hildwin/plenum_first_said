@@ -5,7 +5,7 @@ from string import punctuation
 import xml_processing
 import difflib
 import export
-from database import check_newness
+from database import check_newness, ist_bekannter_name
 
 # Beginn des Dokumentes finden mit Rechtschreibfehlern. 
 def find_beginn(text):
@@ -205,8 +205,12 @@ def prune(new_words, id):
         regcomp = re.compile('[a-z]+[-–][a-z]+')
         if regcomp.search(entry['word']) or len(entry['word']) < 5:
             continue
-        else:
-            export.append_row(entry, id)
+        # Namen von Abgeordneten sind zwar "neu", aber kein interessantes
+        # neues Wort - nur die Ausgabe wird bereinigt, der Korpus (word:*)
+        # bleibt unveraendert.
+        if ist_bekannter_name(entry['word']):
+            continue
+        export.append_row(entry, id)
 
 
 

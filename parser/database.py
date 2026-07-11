@@ -173,7 +173,18 @@ def add_to_queue(word, id):
 def delete_from_queue(word):
     if postRedis.delete(word):
         return True
-    else: 
+    else:
         return False
+
+
+# Redis-Set mit Vor-/Nachnamen aller Abgeordneten (aus den MdB-Stammdaten
+# befuellt, siehe utilities/load_namen.py). Dient nur dazu, Namen aus der
+# Export-Ausgabe herauszufiltern - der Korpus selbst (word:*) bleibt davon
+# unberuehrt, Namen werden dort weiterhin ganz normal als "bekannt" getrackt.
+NAMEN_SET_KEY = 'bekannte_namen'
+
+
+def ist_bekannter_name(word):
+    return bool(r.sismember(NAMEN_SET_KEY, word))
 
 
