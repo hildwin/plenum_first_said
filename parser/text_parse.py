@@ -10,13 +10,15 @@ from database import check_newness, ist_bekannter_name
 # Beginn des Dokumentes finden mit Rechtschreibfehlern. 
 def find_beginn(text):
 
+    # Nur der eindeutige "Beginn:"-Marker (mit Doppelpunkt) zaehlt. Das bloße
+    # Wort "Beginn" kommt in normalen Reden vor (z.B. "am Beginn unserer
+    # Arbeit ...") und wuerde dort faelschlich als Struktur-Marker erkannt -
+    # das schneidet dann echten Inhalt vor der eigentlichen Fundstelle ab.
+    # Wird "Beginn:" nicht gefunden, wird der komplette Text behalten statt
+    # zu raten (text[-1:] waere sonst nur das letzte Zeichen, nicht "nichts
+    # gefunden" - siehe Git-Historie).
     index = text.find('Beginn:')
-    if index == -1:
-        index = text.find('Beginn')
 
-    # Marker nicht gefunden (z.B. "... wird eröffnet" statt "Beginn: ...") ->
-    # kompletten Text behalten. text[-1:] wuerde sonst nur das letzte Zeichen
-    # der Zeichenkette liefern, nicht "nichts gefunden".
     if index == -1:
         return text
 
