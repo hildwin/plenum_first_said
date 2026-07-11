@@ -248,10 +248,12 @@ def prune(new_words, id):
         if wort.lower() in FUELLWOERTER:
             continue
 
-        # Komplett großgeschriebene Wörter (Abkürzungen wie "DDR", "NATO")
-        # von der Längenprüfung ausnehmen - Großschreibung ist ein starkes
-        # Signal für ein Akronym, nicht für ein bedeutungsarmes Fragment.
-        if len(wort) < 5 and not wort.isupper():
+        # Schwelle bewusst niedrig (3): FUELLWOERTER faengt die eigentlich
+        # uninteressanten kurzen Woerter (Artikel, Praepositionen usw.) schon
+        # separat ab, daher muss die Laenge nicht mehr diese Aufgabe
+        # mituebernehmen. Komplett grossgeschriebene Woerter (Abkuerzungen
+        # wie "DDR", "NATO") sind ohnehin von der Pruefung ausgenommen.
+        if len(wort) < 3 and not wort.isupper():
             continue
 
         # Namen von Abgeordneten sind zwar "neu", aber kein interessantes
@@ -268,23 +270,32 @@ def prune(new_words, id):
 # Iterativ statt rekursiv: nach jeder Entfernung wird von vorne neu gescannt,
 # bis sich nichts mehr aendert - vermeidet, waehrend der Iteration ueber
 # "entries" gleichzeitig Eintraege daraus zu entfernen.
+#
+# Kurze Woerter (< 6 Zeichen) werden von dieser Pruefung ausgenommen: bei
+# kurzen Strings fuehrt schon 1 Buchstabe Unterschied zu einem hohen
+# difflib-Aehnlichkeitswert, wodurch voellig unterschiedliche Woerter
+# faelschlich als Tippfehler-Variante voneinander gelten wuerden
+# (z.B. "Art"/"Ort"/"Amt", "Mai"/"Maß").
 def find_matches(entries):
+    kurz = [e for e in entries if len(e['word']) < 6]
+    lang = [e for e in entries if len(e['word']) >= 6]
+
     aenderung = True
 
     while aenderung:
         aenderung = False
-        woerter = [entry['word'] for entry in entries]
+        woerter = [entry['word'] for entry in lang]
 
-        for entry in entries:
+        for entry in lang:
             matches = difflib.get_close_matches(entry['word'], woerter, n=4)
 
             if matches and len(matches) > 1:
                 zu_entfernen = {match for match in matches if match != entry['word']}
-                entries[:] = [e for e in entries if e['word'] not in zu_entfernen]
+                lang[:] = [e for e in lang if e['word'] not in zu_entfernen]
                 aenderung = True
                 break
 
-    return entries
+    return kurz + lang
 
 if __name__ == "__main__":
     file = '#'
