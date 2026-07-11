@@ -10,12 +10,17 @@ from database import check_newness, ist_bekannter_name
 # Beginn des Dokumentes finden mit Rechtschreibfehlern. 
 def find_beginn(text):
 
-    if text.find('Beginn:') == -1:
-        text = text[text.find('Beginn'):]
-    else:
-        text = text[text.find('Beginn'):]
-    
-    return text
+    index = text.find('Beginn:')
+    if index == -1:
+        index = text.find('Beginn')
+
+    # Marker nicht gefunden (z.B. "... wird eröffnet" statt "Beginn: ...") ->
+    # kompletten Text behalten. text[-1:] wuerde sonst nur das letzte Zeichen
+    # der Zeichenkette liefern, nicht "nichts gefunden".
+    if index == -1:
+        return text
+
+    return text[index:]
 
 # Silbentrennung rückgängig machen. 
 def dehyphenate(text):
