@@ -16,6 +16,15 @@ def _redis_port():
         return 6379
 
 
+# Ohne Timeout blockiert ein einzelner haengender Socket-Read/Write
+# (z.B. nach einem stillen Verbindungsabbruch/Conntrack-Idle-Timeout) auf
+# unbestimmte Zeit - der Aufbau-Prozess friert dann ein, ohne dass CPU-Last
+# oder Exit das erkennen lassen. retry_on_timeout baut die Verbindung nach
+# einem Timeout einmal automatisch neu auf, statt komplett haengen zu bleiben.
+SOCKET_CONNECT_TIMEOUT = 5
+SOCKET_TIMEOUT = 30
+
+
 def _redis_client(db):
     redis_url = os.getenv('REDIS_URL', '').strip()
     redis_socket = os.getenv('REDIS_SOCKET', '').strip()
@@ -23,13 +32,22 @@ def _redis_client(db):
     redis_password = os.getenv('REDIS_PASSWORD', '').strip() or None
 
     if redis_url:
-        return redis.Redis.from_url(redis_url, db=db)
+        return redis.Redis.from_url(
+            redis_url,
+            db=db,
+            socket_connect_timeout=SOCKET_CONNECT_TIMEOUT,
+            socket_timeout=SOCKET_TIMEOUT,
+            retry_on_timeout=True,
+        )
 
     if redis_socket:
         return redis.Redis(
             unix_socket_path=redis_socket,
             db=db,
             password=redis_password,
+            socket_connect_timeout=SOCKET_CONNECT_TIMEOUT,
+            socket_timeout=SOCKET_TIMEOUT,
+            retry_on_timeout=True,
         )
 
     return redis.Redis(
@@ -37,6 +55,9 @@ def _redis_client(db):
         port=_redis_port(),
         db=db,
         password=redis_password,
+        socket_connect_timeout=SOCKET_CONNECT_TIMEOUT,
+        socket_timeout=SOCKET_TIMEOUT,
+        retry_on_timeout=True,
     )
 
 
