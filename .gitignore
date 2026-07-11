@@ -31,3 +31,6 @@ parser/output/*
 parser/utilities/*.log
 parser/utilities/download_run.out
 parser/utilities/build_run.out
+
+# Interne Arbeitsnotizen, nicht fuer das oeffentliche Repo
+STATUS.md
