@@ -5,7 +5,7 @@ Plenum First Said findet neue Wörter, die zum ersten Mal während einer Bundest
 
 Hinweis: Automatisches Posten auf Mastodon ist aktuell nicht aktiv (siehe Abschnitt "Mastodon" unten) — der Code dafür ist noch im Repo vorhanden, wird aber nicht mehr aufgerufen.
 
-Das Projekt wurde durch den Twitter-Account [@NYT_first_said](https://x.com/NYT_first_said) von Max Bittker inspiriert und dessen [Code](https://github.com/MaxBittker/nyt-first-said) als Startpunkt genutzt, jedoch zum großen Teil verändert. 
+Das Projekt wurde durch den Twitter-Account [@NYT_first_said](https://x.com/NYT_first_said) von Max Bittker inspiriert und dessen [Code](https://github.com/MaxBittker/nyt-first-said) als Startpunkt genutzt, jedoch zum großen Teil verändert. Aufbauend auf dem bisherigen Code wird nun ermittelt, wann ein Wort erstmals im Bundestagsplenum gesagt wurde - und in welchem Zusammenhang. 
 
 ## Funktionsweise
 
@@ -15,7 +15,7 @@ Unregelmäßigkeiten entstehen z.B. durch Silbentrennungen, die nicht gut von Wo
 
 ## Architektur
 
-`plenar.py` ist die Hauptfunktion, die den Rest orchestriert. Da in der Regel höchstens ein neues Protokoll pro Tag erscheint, reicht ein Cron-Aufruf alle 12 Stunden (z.B. 10 und 22 Uhr) statt stündlich. `database.py` erlaubt eine Verbindung zur lokalen Redis Datenbank.
+`plenar.py` ist die Hauptfunktion, die den Rest orchestriert. Da in der Regel höchstens ein neues Protokoll pro Tag erscheint, reicht ein Cron-Aufruf alle 12 Stunden (z.B. 10 und 22 Uhr) statt stündlich. `database.py` erlaubt eine Verbindung zur lokalen Redis Datenbank (Persistenz-Konfiguration siehe `DEPLOYMENT.md`).
 
 `post_queue.py`, `twitter_creds.py` und `mastodon_creds.py` enthalten die (aktuell nicht aufgerufene) Logik zum Posten neuer Wörter auf Mastodon/Twitter. Twitter wurde mittlerweile auskommentiert, weil der Bot nichts zu diesem Höllenort beitragen muss.
 
@@ -27,9 +27,15 @@ Unregelmäßigkeiten entstehen z.B. durch Silbentrennungen, die nicht gut von Wo
 
 `export.py` schreibt jedes neu gefundene Wort samt Satzkontext und Sprecherzuordnung in `parser/output/neue_woerter.csv` und `parser/output/neue_woerter.db` (SQLite).
 
-Im Ordner utilities finden sich Skripte, die bei dem Aufbau der Datenbank geholfen haben. 
+Im Ordner `utilities` finden sich Hilfsskripte: `build_database_local.py` verarbeitet lokal in `parser/archive/` abgelegte Protokoll-XMLs in den Korpus (für den Erstaufbau, siehe unten). `download_new_format_xml.py` lädt Protokolle im neuen, reich strukturierten XML-Format automatisiert über die DIP-API herunter. `load_namen.py` befüllt den Namensfilter (siehe "Was bedeutet neues Wort?") aus den MdB-Stammdaten, wahlweise aus einer lokalen Datei oder per `--url` direkt von bundestag.de. `wort_herkunft.py` schlägt nach, in welcher Sitzung/Wahlperiode ein Wort im Korpus zuerst auftauchte.
 
 Über das Paket [python-dotenv](https://github.com/theskumar/python-dotenv) werden API-Schlüssel durch Umgebungsvariablen bereitgestellt. Dazu muss eine `.env` Datei in der Basis des Projektes existieren. In dem Repo liegt die Datei `example.env`, die alle Variabeln aufzählt und den momentan öffentlichen API Key des Bundestags beinhaltet.
+
+## Datenbank-Erstaufbau
+
+Der Korpus wurde einmalig aus allen historischen Plenarprotokollen aufgebaut. Bundestagsprotokolle liegen in zwei grundverschiedenen XML-Formaten vor: einem reich strukturierten Format (`<sitzungsverlauf>`/`<rede>`/`<redner>`, ab ca. Mitte der 19. Wahlperiode) und einem älteren, unstrukturierten Flat-Text-Format (davor). `process_woerter()` erkennt beide automatisch.
+
+Für neuere Protokolle (reiches Format) lassen sich alle Dateien automatisiert per `download_new_format_xml.py` über die DIP-API holen. Für ältere Protokolle bietet die Open-Data-Seite des Bundestags kein Sammel-Archiv an — diese müssen manuell heruntergeladen und nach `parser/archive/` gelegt werden. Anschließend füllt `build_database_local.py` daraus den Korpus. Nach einem (Neu-)Aufbau muss `meta:id` in Redis manuell auf die zuletzt verarbeitete ID gesetzt werden, bevor `plenar.py` den Live-Betrieb aufnimmt.
 
 ## DPI API 
 
@@ -50,6 +56,7 @@ Aus Gründen der Unterhaltung werden einige Worte aussortiert, die zwar tatsäch
 - gegenderte Formen
 - Wörter unter 4 Buchstaben
 - Gesetzesabkürzungen
+- Vor- und Nachnamen von Abgeordneten (laut MdB-Stammdaten seit der 1. Wahlperiode, siehe `utilities/load_namen.py`) — diese werden weiterhin im Korpus getrackt, aber aus der Export-CSV/DB herausgefiltert
 
 
 
