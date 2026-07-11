@@ -28,3 +28,6 @@ parser/plenarlog.log
 *.xml
 parser/post.log
 parser/output/*
+parser/utilities/*.log
+parser/utilities/download_run.out
+parser/utilities/build_run.out
