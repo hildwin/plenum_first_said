@@ -1,10 +1,10 @@
-# Status — Optimierung Plenum First Said (Stand: 2026-07-11, Nachmittag)
+# Status — Optimierung Plenum First Said 
 
-Fortsetzung der Sessions vom 2026-07-09/10/11. Der strategische Kurswechsel (CSV/DB-Export statt Mastodon-Posting) ist umgesetzt, verifiziert und gepusht. Redis läuft auf `srvrapa`. Der Korpus-Erstaufbau läuft aktuell zum **dritten Mal** — die ersten beiden Durchläufe liefen mit noch fehlerhaftem Code (siehe unten), der dritte Durchlauf mit dem finalen Fix läuft gerade unbeaufsichtigt.
+Der strategische Kurswechsel (CSV/DB-Export statt Mastodon-Posting) ist umgesetzt, verifiziert und gepusht. Redis läuft auf internem Server. Der Korpus-Erstaufbau läuft aktuell.
 
 ## Strategischer Kurswechsel (umgesetzt, gepusht)
 
-Auf Wunsch des Nutzers: keine automatischen Mastodon-Posts mehr. Stattdessen werden neue Wörter mit Satzkontext und Sprecherzuordnung (Redner/Präsidium/Kommentar, inkl. Zwischenfrage-Kennzeichnung) in CSV **und** SQLite exportiert, zur manuellen Weiterverarbeitung.
+Keine automatischen Mastodon-Posts mehr. Stattdessen werden neue Wörter mit Satzkontext und Sprecherzuordnung (Redner/Präsidium/Kommentar, inkl. Zwischenfrage-Kennzeichnung) in CSV **und** SQLite exportiert, zur manuellen Weiterverarbeitung.
 
 - `parser/xml_processing.py`: `get_redebeitraege()` — Sprecher-Zustandsautomat über `<sitzungsverlauf>`/`<rede>`/`<redner>`/`<kommentar>`, erkennt Zwischenfragen. `get_protokoll_metadata()` — liest Wahlperiode/Sitzungsnr/Datum/Titel direkt aus der XML (neues Root-Attribut-Format und altes `<DOKUMENT>`-Format).
 - `parser/text_parse.py`: Satzsplitting, `process_woerter`/`prune`/`find_matches` auf strukturierte Dict-Records umgestellt, Fallback auf altes Flat-Text-Format bleibt erhalten.
