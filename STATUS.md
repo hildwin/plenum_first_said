@@ -1,67 +1,75 @@
-# Status — Optimierung Plenum First Said (Stand: 2026-07-11)
+# Status — Optimierung Plenum First Said (Stand: 2026-07-11, Nachmittag)
 
-Fortsetzung der Sessions vom 2026-07-09/10. Der strategische Kurswechsel (CSV/DB-Export statt Mastodon-Posting) ist umgesetzt, verifiziert und gepusht. Erstaufbau-Downloads für WP1–21 liegen auf dem Produktionsserver bereit. Redis ist auf `srvrapa` eingerichtet und getestet; der Korpus-Erstaufbau (`build_database_local.py`) läuft im Hintergrund.
+Fortsetzung der Sessions vom 2026-07-09/10/11. Der strategische Kurswechsel (CSV/DB-Export statt Mastodon-Posting) ist umgesetzt, verifiziert und gepusht. Redis läuft auf `srvrapa`. Der Korpus-Erstaufbau läuft aktuell zum **dritten Mal** — die ersten beiden Durchläufe liefen mit noch fehlerhaftem Code (siehe unten), der dritte Durchlauf mit dem finalen Fix läuft gerade unbeaufsichtigt.
 
-## Strategischer Kurswechsel (umgesetzt)
+## Strategischer Kurswechsel (umgesetzt, gepusht)
 
 Auf Wunsch des Nutzers: keine automatischen Mastodon-Posts mehr. Stattdessen werden neue Wörter mit Satzkontext und Sprecherzuordnung (Redner/Präsidium/Kommentar, inkl. Zwischenfrage-Kennzeichnung) in CSV **und** SQLite exportiert, zur manuellen Weiterverarbeitung.
 
-**Geänderte/neue Dateien** (gepusht, Commits `ab5ea11` und `c4ac5a3`):
-- `parser/xml_processing.py`: `get_redebeitraege()` — Sprecher-Zustandsautomat über `<sitzungsverlauf>`/`<rede>`/`<redner>`/`<kommentar>`, erkennt Zwischenfragen (Haupt-Redner:in einer Rede vs. abweichender Sprecher). `get_protokoll_metadata()` — liest Wahlperiode/Sitzungsnr/Datum/Titel direkt aus der XML (neues Root-Attribut-Format **und** altes `<DOKUMENT>`/Großschreibungs-Format), ohne API-JSON zu brauchen.
-- `parser/text_parse.py`: Satzsplitting (`split_saetze`), `process_woerter`/`prune`/`find_matches` auf strukturierte Dict-Records umgestellt (Fallback auf altes Flat-Text-Format bleibt erhalten für Protokolle ohne `<sitzungsverlauf>`). `dehyphenate()`-Randfall behoben (IndexError bei letzter Zeile/leerer Folgezeile — trat bei alten, dicht silbengetrennten Protokollen sehr häufig auf).
-- `parser/export.py` (neu): Dual-Write neuer Wörter nach `parser/output/neue_woerter.csv` und `parser/output/neue_woerter.db` (SQLite, Tabelle `neue_woerter`).
-- `parser/optv_api.py` entfernt (nur von der jetzt inaktiven Mastodon-Queue genutzt).
-- `parser/post_queue.py`/`mastodon_cred.py` bleiben unverändert im Repo, werden aber nicht mehr aufgerufen (bewusst stillgelegt, nicht gelöscht).
+- `parser/xml_processing.py`: `get_redebeitraege()` — Sprecher-Zustandsautomat über `<sitzungsverlauf>`/`<rede>`/`<redner>`/`<kommentar>`, erkennt Zwischenfragen. `get_protokoll_metadata()` — liest Wahlperiode/Sitzungsnr/Datum/Titel direkt aus der XML (neues Root-Attribut-Format und altes `<DOKUMENT>`-Format).
+- `parser/text_parse.py`: Satzsplitting, `process_woerter`/`prune`/`find_matches` auf strukturierte Dict-Records umgestellt, Fallback auf altes Flat-Text-Format bleibt erhalten.
+- `parser/export.py` (neu): Dual-Write neuer Wörter nach CSV und SQLite (`parser/output/`).
+- `parser/optv_api.py` entfernt; `post_queue.py`/`mastodon_cred.py` bleiben im Repo, aber inaktiv.
 - `README.md`/`.gitignore` aktualisiert.
 
-## Kritischer Fund: Live-Fetch nutzte falsches XML-Format (behoben)
+## Kritischer Fund #1: Live-Fetch nutzte falsches XML-Format (behoben)
 
-`xml_processing.get(id)` holte bisher über die DIP-API (`format=xml`) **immer** nur einen generischen `<document>`-Flat-Text-Wrapper — auch für aktuelle WP21-Protokolle, die auf der Open-Data-Seite die reiche `<sitzungsverlauf>`-Struktur haben. Ohne Fix hätte die neue Satz-/Sprecherzuordnung im Live-Betrieb **nie** gegriffen.
+`xml_processing.get(id)` holte über die DIP-API (`format=xml`) **immer** nur einen generischen `<document>`-Flat-Text-Wrapper — auch für aktuelle Protokolle mit reicher `<sitzungsverlauf>`-Struktur. **Fix:** `get()` prüft zuerst `fundstelle.xml_url` aus den JSON-Metadaten und holt bei neueren Protokollen die echte, strukturierte XML direkt von `dserver.bundestag.de`. Verifiziert gegen echte API-Antworten.
 
-**Fix:** `get()` prüft jetzt zuerst `fundstelle.xml_url` aus den JSON-Metadaten; ist das Feld gesetzt (nur bei neueren Protokollen vorhanden), wird die echte, strukturierte XML direkt von `dserver.bundestag.de` geholt. Fehlt es (ältere Protokolle), bleibt der bisherige Flat-Text-Weg als Fallback. Verifiziert gegen echte API-Antworten (ID 5803/WP21 nutzt jetzt `xml_url` → `dbtplenarprotokoll`-Root mit 2363 Redebeiträgen; ID 1442/WP13 fällt korrekt auf Flat-Text zurück).
+## Kritischer Fund #2: `find_beginn()` hat massenhaft Inhalt verschluckt (behoben, zwei Iterationen)
 
-## Erstaufbau-Strategie (Downloads abgeschlossen, Einlesen steht aus)
+Entdeckt durch Stichproben des Nutzers gegen historisches Wissen (`wort_herkunft.py Adenauer` bzw. `Alterspräsident` lieferte offensichtlich falsche Sitzungen).
 
-**Format-Tiers empirisch verifiziert** (echte Proben von der Open-Data-Seite, WP1/5/7/10/19/21): binärer Übergang zwischen reinem `<TEXT>`-Flat-Blob (bis Mitte WP19) und voller `<sitzungsverlauf>`-Struktur (ab Mitte WP19). Kein Zwischenformat gefunden. `process_woerter()` erkennt beide automatisch pro Dokument.
+- **Iteration 1:** `text.find('Beginn')` liefert `-1`, wenn die Zeichenfolge fehlt. `text[-1:]` ist dann **nicht** "nichts gefunden", sondern das *letzte Zeichen* der Zeichenkette — der komplette Protokollinhalt wurde stillschweigend auf 1 Zeichen verkürzt. Betraf Sitzung 3/WP1 ("Adenauer" wurde faelschlich Sitzung 7 statt 3 zugeordnet).
+- **Iteration 2:** Auch die Fallback-Suche nach dem bloßen Wort "Beginn" (ohne Doppelpunkt) ist unzuverlässig, da "Beginn" ein gewöhnliches deutsches Wort ist, das mitten in einer Rede vorkommen kann (z.B. "Ich glaube am Beginn unserer Arbeit ..."). Betraf Sitzung 1/WP1 ("Alterspräsident" wurde fälschlich Sitzung 34 zugeordnet, weil "Beginn" zufällig bei 79% der Rede auftauchte).
+- **Finale Lösung:** Nur der eindeutige Marker `"Beginn:"` (mit Doppelpunkt) wird noch gesucht. Wird er nicht gefunden, bleibt der **komplette Text erhalten** statt zu raten — bewusst konservativ, da über 75+ Jahre Protokolle keine verlässliche, einheitliche Formulierung für "Sitzung eröffnet" existiert (drei verschiedene Formulierungen allein in den ersten drei Sitzungen von WP1 gefunden: "Beginn:", "... eröffnet", "... eingeleitet mit der Ouvertüre ...").
+- **Tragweite:** `01001.xml` liefert dadurch jetzt **1296 statt 405 Wörter** — der Bug hat bei betroffenen Dokumenten rund 70% des Inhalts verschluckt. Betraf vermutlich viele Protokolle aus der Flat-Text-Ära (WP1 bis Mitte WP19).
+- **Konsequenz:** Der Korpus-Aufbau musste deswegen zweimal neu gestartet werden (siehe unten) — beide Male sicher/idempotent möglich, da `check_newness()`/`add_to_database()` rein additiv sind und `check_age()` frühere Fundstellen automatisch nachträglich korrigiert.
 
-**Open-Data-Seite bietet keine ZIP-Sammlung für die neuen Formate** — dafür neues Skript `parser/utilities/download_new_format_xml.py`: durchsucht WP19–21 per Cursor-Pagination über die DIP-Such-API, lädt jedes Bundestagsprotokoll mit `fundstelle.xml_url` direkt herunter, überspringt Bundesrat-Dokumente und bereits vorhandene Dateien (idempotent/fortsetzbar).
+## Weitere Bugfixes (gepusht)
 
-**`parser/utilities/build_database_local.py`** überarbeitet: befüllt `protokoll:<id>`-Metadaten direkt aus der lokalen XML (via `get_protokoll_metadata()`), kein API-Call nötig; verarbeitet alle Dateien in `parser/archive/`.
+- `ok_word()`: `[A-z]` → `[A-Za-z]` (ASCII-Lücke zwischen Z und a).
+- `ok_word()`: Wiederholungs-Check `([A-Za-z])\1{4,}` war als normaler statt roher String komplett wirkungslos (`\1` wurde zu `\x01`) — jetzt `r'...'`.
+- `check_age()`: `id` (int oder str je nach Aufrufer) wurde direkt mit dem aus Redis dekodierten str verglichen, dadurch nie gleich — jetzt `str(id)`-Vergleich.
+- `find_matches()`: von rekursiv+`break` auf iterative Fixpunkt-Schleife umgestellt, gleiches Verhalten, kein Mutieren-während-Iteration mehr.
+- `dehyphenate()`: `IndexError` bei letzter Zeile/leerer Folgezeile behoben (trat bei alten, dicht silbengetrennten Protokollen häufig auf).
 
-**Bugfix in beiden Utility-Skripten:** `ModuleNotFoundError` beim direkten Ausführen (`python utilities/script.py` setzt `sys.path[0]` auf `utilities/`, nicht `parser/`) — behoben durch expliziten `sys.path.insert(0, ...)` auf das übergeordnete Verzeichnis.
+## Neu: MdB-Namensfilter (gepusht)
 
-**Downloads auf `srvrapa` (Produktionsserver) abgeschlossen:**
-- WP21: fertig
-- WP20: 214 heruntergeladen/vorhanden, 44 übersprungen
-- WP19: 239 heruntergeladen/vorhanden, 52 übersprungen (deckt sich exakt mit `numFound: 291` aus der API-Recherche)
-- WP1–18: manuell von der Open-Data-Seite heruntergeladen, per FileZilla nach `parser/archive/` auf `srvrapa` übertragen
-- **Damit liegt der komplette historische Bestand (WP1–21) in `parser/archive/` auf `srvrapa` bereit.**
-- Lokal (dieser Dev-Umgebung) liegen zusätzlich 178 WP19-Dateien in `parser/archive/` (unbeabsichtigter Nebeneffekt eines Testlaufs, bewusst als Kopfstart behalten, git-ignoriert).
+Auf Vorschlag des Nutzers: Namen von Abgeordneten sind technisch "neue Wörter", aber kein interessanter Fund für die Review-CSV.
 
-**`build_database_local.py` läuft** (Stand jetzt): auf `srvrapa` im Hintergrund gestartet (`nohup ... &`, Fortschritt in `parser/utilities/build_run.out`), verarbeitet den vollen Archiv-Bestand (WP1–21). Noch nicht abgeschlossen — auf die Abschlusszeile `Fertig. <N> neue Woerter insgesamt.` warten, dann weiter mit `meta:id` setzen (siehe unten).
+- `parser/utilities/load_namen.py`: liest Vor-/Nachnamen aus `MDB_STAMMDATEN.XML` (offizielle Bundestag-Stammdaten seit WP1, inkl. Namenshistorie), füllt Redis-Set `bekannte_namen`. Unterstützt lokale Datei **und** direkten Download (`--url`) von `https://www.bundestag.de/resource/blob/472878/MdB-Stammdaten.zip` (Blob-URL evtl. nicht dauerhaft stabil — Skript scheitert bei Downloadfehlern laut mit Exit-Code 1 statt still eine veraltete Liste zu behalten).
+- `database.ist_bekannter_name()` + Prüfung in `prune()`: **nur der Export wird bereinigt**, der Korpus selbst (`word:*`) bleibt unverändert — Namen bleiben normal per `wort_herkunft.py` auffindbar, tauchen aber nicht in der CSV/DB auf. Verifiziert (Kölbl wird korrekt getrackt, aber nicht exportiert).
+- Empfehlung für Wartung: ca. 1x/Monat `load_namen.py --url` erneut laufen lassen (rein additiv, sicher wiederholbar) — z.B. per Cron.
+
+## Neu: `wort_herkunft.py` (gepusht)
+
+Utility zum Nachschlagen, in welcher Sitzung/WP ein Korpus-Wort zuerst auftauchte (Einzelabfrage pro Wort, oder Gesamtübersicht nach Wahlperiode). War maßgeblich dafür, die beiden `find_beginn()`-Bugs überhaupt zu entdecken.
+
+## Erstaufbau-Status
+
+- **Downloads abgeschlossen:** WP21 fertig, WP20 (214 dl/vorhanden, 44 übersprungen), WP19 (239/52, deckt sich mit `numFound: 291`), WP1–18 manuell von Open-Data per FileZilla übertragen. Kompletter historischer Bestand (WP1–21) liegt in `parser/archive/` auf `srvrapa`.
+- **`build_database_local.py` läuft zum dritten Mal** (Stand jetzt, Nutzer lässt es unbeaufsichtigt laufen): erste zwei Durchläufe mit noch fehlerhaftem `find_beginn()` gestartet und nach Fund/Fix jeweils abgebrochen + neu gestartet. Dritter Lauf nutzt den finalen Fix. `dbsize` zuletzt bei 165.556 und wachsend.
+- **Nach Abschluss unbedingt stichprobenartig gegenprüfen** (`wort_herkunft.py <wort>` gegen bekannte historische Fakten) — hat sich als sehr wertvoll erwiesen, um versteckte Extraktionsfehler zu finden.
 
 ## Deployment-Stand
 
-- Repo als Fork: `github.com/hildwin/plenum_first_said` (kein Schreibzugriff auf `ungeschneuer/plenum_first_said` — Remotes lokal umbenannt: `origin`=Fork, `upstream`=Original). PR gegen Upstream noch nicht entschieden.
-- `srvrapa`: **LXC-Container auf Proxmox** (Debian, kein Raspberry Pi — `/home/pi/...` ist nur Namenskonvention). Repo geklont, `uv sync` gelaufen, `.env` mit `BUNDESTAG_API_KEY` eingerichtet.
-- **Redis eingerichtet und getestet:** installiert, `redis.conf` nach `DEPLOYMENT.md` konfiguriert (bind/requirepass/AOF/RDB), Dienst läuft und ist für Autostart aktiviert (`systemctl enable`), Verbindung über `redis-cli ping` **und** `database.r.ping()` aus dem Projekt-Code bestätigt (`PONG`/`True`). `.env` um `REDIS_HOST`/`REDIS_PORT`/`REDIS_PASSWORD` ergänzt (`REDIS_SOCKET`/`REDIS_URL` bleiben bewusst leer, werden von `_redis_client()` korrekt übersprungen).
-- **`vm.overcommit_memory=1` nicht gesetzt:** In einem LXC-Container auf Proxmox nicht aus dem Container heraus setzbar (host-weiter, nicht namespaced Kernel-Parameter) — bewusst übersprungen, da bei diesem winzigen Datenvolumen kein echtes Risiko für `BGSAVE`-Fehlschläge. Könnte bei Bedarf später auf dem Proxmox-Host selbst gesetzt werden.
-- **Noch offen:** Cron-Einrichtung für `plenar.py` (bewusst erst nach abgeschlossenem Korpus-Aufbau und gesetztem `meta:id`).
+- Repo als Fork: `github.com/hildwin/plenum_first_said` (kein Schreibzugriff auf `ungeschneuer/plenum_first_said` — Remotes: `origin`=Fork, `upstream`=Original). PR gegen Upstream noch nicht entschieden.
+- `srvrapa`: LXC-Container auf Proxmox (Debian). Repo geklont, `uv sync`, `.env` mit `BUNDESTAG_API_KEY` eingerichtet.
+- Redis eingerichtet und getestet (AOF+RDB nach `DEPLOYMENT.md`, Autostart aktiviert, Verbindung bestätigt). `vm.overcommit_memory=1` in diesem LXC-Container nicht setzbar (host-weiter Kernel-Parameter) — bewusst übersprungen, unkritisch bei diesem Datenvolumen.
+- Cron für `plenar.py` noch nicht eingerichtet (bewusst erst nach abgeschlossenem, verifiziertem Korpus-Aufbau).
 
-## Weiterhin offen (aus der letzten Session, unverändert)
+## Weiterhin offen
 
-1. **Drei kleine Bugs noch nicht behoben** (bewusst zurückgestellt, nicht Teil der heutigen Änderungen):
-   - `[A-z]`-Regex in `ok_word()`, [parser/text_parse.py](parser/text_parse.py) — sollte `[A-Za-z]` sein, aktuell folgenlos.
-   - Typ-Mismatch in `check_age()`, [parser/database.py:129-131](parser/database.py#L129-L131) — `int == str` immer `False`.
-   - `find_matches()` mutiert Liste während der Iteration — Verhalten bewusst unverändert beibehalten (nur auf Dict-Records angepasst), da Fix nicht angefragt.
-2. **LLM-gestützte Wortklassifikation** (Lemma/POS/Komposita via Claude API) — als bewusster 2. Schritt zurückgestellt, baut auf dem heute eingeführten Satzkontext auf.
-3. **Nomen-only-Filter** (`islower`-Check in `add_to_queue()`) — Herkunft geklärt (siehe Git-Historie-Analyse von gestern), Ersetzung durch POS-Prüfung hängt an Punkt 2.
-4. `meta:id` muss nach dem Korpus-Erstaufbau manuell auf die letzte verarbeitete ID gesetzt werden, bevor der Live-Betrieb (`plenar.py`) startet.
+1. **LLM-gestützte Wortklassifikation** (Lemma/POS/Komposita via Claude API) — bewusst als 2. Schritt zurückgestellt, baut auf dem Satzkontext auf.
+2. **Nomen-only-Filter** (`islower`-Check in `add_to_queue()`) — Ersetzung durch POS-Prüfung hängt an Punkt 1.
+3. `meta:id` muss nach abgeschlossenem, verifiziertem Korpus-Erstaufbau gesetzt werden.
 
 ## Nächste Schritte
 
-1. **Sofort:** Abschluss von `build_database_local.py` abwarten (`tail -f utilities/build_run.out` auf `srvrapa`), Endergebnis (`Fertig. <N> neue Woerter insgesamt.`) prüfen.
-2. `meta:id` in Redis auf die zuletzt verarbeitete ID setzen, bevor `plenar.py` live läuft.
-3. Cron für `plenar.py` auf `srvrapa` einrichten — **alle 12 Stunden reicht** (z.B. 10 und 22 Uhr), da in der Regel höchstens ein neues Protokoll pro Tag erscheint (README entsprechend korrigiert, weg von "stündlich"). `post_queue.py` bewusst nicht einplanen (inaktiv).
-4. Entscheiden: PR gegen `ungeschneuer/plenum_first_said` öffnen oder vorerst nur eigener Fork.
-5. Danach: LLM-Klassifikation (Schritt 2) und die drei offenen Bugs angehen.
+1. **Sofort:** Dritten Durchlauf von `build_database_local.py` abwarten (`utilities/build_run3.out`).
+2. Stichprobenartig mit `wort_herkunft.py` gegen weitere bekannte historische Fakten gegenprüfen, um sicherzugehen, dass keine weiteren `find_beginn()`-artigen Überraschungen mehr auftauchen.
+3. `meta:id` in Redis setzen.
+4. Cron für `plenar.py` einrichten (alle 12h, z.B. 10/22 Uhr — README bereits entsprechend angepasst) und optional `load_namen.py --url` monatlich.
+5. Entscheiden: PR gegen `ungeschneuer/plenum_first_said` öffnen oder vorerst nur eigener Fork.
+6. Danach: LLM-Klassifikation (Schritt 2).
