@@ -53,8 +53,8 @@ Die früher genutzten Mastodon-Accounts: <a rel="me" href="https://mastodon.soci
 Aus Gründen der Unterhaltung werden einige Worte aussortiert, die zwar tatsächlich zum ersten Mal so gesagt werden, aber nur bedingt an sich einen Informationswert haben. Folgendes wird z.B. versucht, herauszufiltern:
 - Plural
 - Genitiv
-- Wörter unter 4 Buchstaben
-- Gesetzesabkürzungen
+- Wörter unter 5 Buchstaben — außer sie sind komplett großgeschrieben (Abkürzungen wie "DDR", "NATO" werden also erkannt, kurze Wortfragmente nicht)
+- Gängige Funktionswörter (Artikel, Präpositionen, Konjunktionen, Pronomen, Hilfs-/Modalverben, Füllpartikeln — siehe `FUELLWOERTER` in `text_parse.py`)
 - Vor- und Nachnamen von Abgeordneten (laut MdB-Stammdaten seit der 1. Wahlperiode, siehe `utilities/load_namen.py`) — diese werden weiterhin im Korpus getrackt, aber aus der Export-CSV/DB herausgefiltert
 
 Gegenderte Formen (z.B. "Bundeskanzlerin", "Alterspräsidentin") werden dagegen bewusst **nicht** herausgefiltert, sondern als eigenständiges neues Wort erkannt — das erstmalige Auftreten einer weiblichen Form eines zuvor nur männlich besetzten Amts ist gerade ein bemerkenswerter Fund.

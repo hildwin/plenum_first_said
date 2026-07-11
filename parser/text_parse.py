@@ -202,6 +202,36 @@ def check_word(word, id):
     else:
         return False
 
+# Gaengige deutsche Funktionswoerter (Artikel, Praepositionen, Konjunktionen,
+# Pronomen, Hilfs-/Modalverben, Fuellpartikeln) - fuer den Export uninteressant,
+# auch wenn sie zufaellig zum ersten Mal in exakt dieser Form auftauchen.
+FUELLWOERTER = frozenset({
+    # Artikel
+    'der', 'die', 'das', 'den', 'dem', 'des', 'ein', 'eine', 'einen', 'einem', 'einer', 'eines',
+    # Praepositionen
+    'in', 'an', 'auf', 'mit', 'fuer', 'für', 'von', 'zu', 'bei', 'nach', 'über', 'unter', 'vor',
+    'hinter', 'neben', 'zwischen', 'durch', 'gegen', 'ohne', 'um', 'bis', 'aus', 'seit',
+    'während', 'wegen', 'trotz', 'statt', 'außer', 'innerhalb', 'außerhalb', 'entlang',
+    'gemäß', 'laut', 'dank',
+    # Konjunktionen
+    'und', 'oder', 'aber', 'doch', 'sondern', 'denn', 'weil', 'dass', 'wenn', 'als', 'obwohl',
+    'bevor', 'nachdem', 'damit', 'sodass', 'sowie', 'wie',
+    # Pronomen
+    'ich', 'du', 'er', 'sie', 'es', 'wir', 'ihr', 'mich', 'dich', 'ihn', 'uns', 'euch', 'ihnen',
+    'mein', 'dein', 'sein', 'unser', 'euer', 'dieser', 'jener', 'welcher', 'man', 'etwas',
+    'nichts', 'jemand', 'niemand',
+    # Hilfs-/Modalverben (konjugiert)
+    'ist', 'sind', 'war', 'waren', 'bin', 'bist', 'seid', 'hat', 'haben', 'hatte', 'hatten',
+    'wird', 'werden', 'wurde', 'wurden', 'kann', 'können', 'konnte', 'muss', 'müssen', 'musste',
+    'soll', 'sollen', 'sollte', 'will', 'wollen', 'wollte', 'mag', 'mögen', 'darf', 'dürfen',
+    # Fuellwoerter/Partikeln
+    'eben', 'halt', 'mal', 'schon', 'noch', 'nur', 'sehr', 'sogar', 'eigentlich', 'wirklich',
+    'natürlich', 'überhaupt', 'wohl', 'etwa', 'ohnehin',
+    # Haeufige Adverbien
+    'hier', 'dort', 'jetzt', 'heute', 'morgen', 'gestern', 'immer', 'manchmal', 'mehr', 'weniger',
+})
+
+
 # Aussortieren von Wörtern und Export der Überlebenden (CSV + DB)
 def prune(new_words, id):
 
@@ -209,14 +239,27 @@ def prune(new_words, id):
 
     # Entfernt Kompositionen, die eine Silbentrennung in der Mitte der Zeile sein könnten.
     for entry in pruned_entries:
+        wort = entry['word']
         regcomp = re.compile('[a-z]+[-–][a-z]+')
-        if regcomp.search(entry['word']) or len(entry['word']) < 5:
+
+        if regcomp.search(wort):
             continue
+
+        if wort.lower() in FUELLWOERTER:
+            continue
+
+        # Komplett großgeschriebene Wörter (Abkürzungen wie "DDR", "NATO")
+        # von der Längenprüfung ausnehmen - Großschreibung ist ein starkes
+        # Signal für ein Akronym, nicht für ein bedeutungsarmes Fragment.
+        if len(wort) < 5 and not wort.isupper():
+            continue
+
         # Namen von Abgeordneten sind zwar "neu", aber kein interessantes
         # neues Wort - nur die Ausgabe wird bereinigt, der Korpus (word:*)
         # bleibt unveraendert.
-        if ist_bekannter_name(entry['word']):
+        if ist_bekannter_name(wort):
             continue
+
         export.append_row(entry, id)
 
 
