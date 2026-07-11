@@ -10,10 +10,10 @@ from api_functions import get_url_content
 load_dotenv()
 
 
-# API Key aus dem Environment
+# API Key aus dem Environment - wird nur gebraucht, wenn find_new_doc() tatsaechlich
+# live gegen die DIP-API abfragt, daher kein Fehlschlag schon beim Import (dieses
+# Modul wird auch von rein lokalen Offline-Skripten importiert, die den Key nie nutzen).
 api_key = os.environ.get('BUNDESTAG_API_KEY')
-if not api_key:
-    raise RuntimeError('BUNDESTAG_API_KEY ist nicht gesetzt (.env pruefen)')
 
 
 def add_protokoll(response):
@@ -65,6 +65,9 @@ def add_protokoll(response):
 
 
 def find_new_doc(id):
+
+    if not api_key:
+        raise RuntimeError('BUNDESTAG_API_KEY ist nicht gesetzt (.env pruefen)')
 
     for x in range(id, id + 20):
 

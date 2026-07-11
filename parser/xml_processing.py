@@ -9,10 +9,10 @@ from dip_api import get_url_content
 
 load_dotenv()
 
-# API Key aus dem Environment
+# API Key aus dem Environment - wird nur fuer den Live-Fetch (_get_metadata) gebraucht,
+# daher kein Fehlschlag schon beim Import (dieses Modul wird auch von rein lokalen
+# Offline-Skripten importiert, die nie live gegen die DIP-API abfragen).
 api_key = os.environ.get('BUNDESTAG_API_KEY')
-if not api_key:
-    raise RuntimeError('BUNDESTAG_API_KEY ist nicht gesetzt (.env pruefen)')
 
 
 # Speichert XML ab nach Download
@@ -32,6 +32,9 @@ def save(id, current_xml):
 # fundstelle.xml_url zeigt (falls vorhanden) auf die tatsaechliche, reich
 # strukturierte Protokoll-XML auf dserver.bundestag.de.
 def _get_metadata(id):
+
+    if not api_key:
+        raise RuntimeError('BUNDESTAG_API_KEY ist nicht gesetzt (.env pruefen)')
 
     url = 'https://search.dip.bundestag.de/api/v1/plenarprotokoll-text/' + str(id) + '?apikey=' + api_key
 
