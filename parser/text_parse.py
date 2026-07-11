@@ -175,9 +175,9 @@ def process_woerter (xml_file, id):
 def ok_word(word):
 
     # Wort hat gleiche Zeichen mehrmals hintereinander
-    regmul = re.compile('([A-z])\1{4,}')
+    regmul = re.compile(r'([A-Za-z])\1{4,}')
     # Wort hat nicht nur am Anfang Großbuchstaben
-    regsmall = re.compile('[A-z]{1}[a-z]*[A-Z]+[a-z]*')
+    regsmall = re.compile('[A-Za-z]{1}[a-z]*[A-Z]+[a-z]*')
 
     if regmul.search(word) or regsmall.search(word):
         return False
@@ -210,21 +210,26 @@ def prune(new_words, id):
 
 
 
-# Recursive match finding der Liste, um Index-Fehler zu vermeiden
+# Entfernt aehnliche Wortformen aus der Liste (z.B. Tippfehler-Varianten).
+# Iterativ statt rekursiv: nach jeder Entfernung wird von vorne neu gescannt,
+# bis sich nichts mehr aendert - vermeidet, waehrend der Iteration ueber
+# "entries" gleichzeitig Eintraege daraus zu entfernen.
 def find_matches(entries):
-    woerter = [entry['word'] for entry in entries]
+    aenderung = True
 
-    for entry in entries:
-        matches = difflib.get_close_matches(entry['word'], woerter, n=4)
+    while aenderung:
+        aenderung = False
+        woerter = [entry['word'] for entry in entries]
 
-        if matches and len(matches) > 1:
-            for match in matches:
-                if match == entry['word']:
-                    continue
-                entries[:] = [e for e in entries if e['word'] != match]
-                woerter[:] = [w for w in woerter if w != match]
-            find_matches(entries)
-            break
+        for entry in entries:
+            matches = difflib.get_close_matches(entry['word'], woerter, n=4)
+
+            if matches and len(matches) > 1:
+                zu_entfernen = {match for match in matches if match != entry['word']}
+                entries[:] = [e for e in entries if e['word'] not in zu_entfernen]
+                aenderung = True
+                break
+
     return entries
 
 if __name__ == "__main__":

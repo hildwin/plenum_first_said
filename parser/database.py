@@ -128,7 +128,10 @@ def check_age(word,id):
     # Quelle des Wortes welches aktuell in der Datenbank ist
     aktuelle_id = r.hget('word:' + word, 'id').decode("utf-8")
 
-    if id == aktuelle_id:
+    # id kommt je nach Aufrufer als int oder str (z.B. int aus plenar.py,
+    # str aus build_database_local.py) - als str vergleichen, damit der
+    # Vergleich unabhaengig vom Typ des Aufrufers korrekt funktioniert.
+    if str(id) == aktuelle_id:
         return False
 
     else:
