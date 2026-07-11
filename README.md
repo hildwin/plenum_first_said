@@ -1,17 +1,16 @@
 # Plenum First Said
 
-
 Plenum First Said findet neue Wörter, die zum ersten Mal während einer Bundestagsdebatte gesagt wurden, samt Satzkontext und Sprecherzuordnung, zur manuellen Nachbearbeitung. Es wird in keiner Weise Korrektheit garantiert.
 
 Hinweis: Automatisches Posten auf Mastodon ist aktuell nicht aktiv (siehe Abschnitt "Mastodon" unten) — der Code dafür ist noch im Repo vorhanden, wird aber nicht mehr aufgerufen.
 
-Das Projekt wurde durch den Twitter-Account [@NYT_first_said](https://x.com/NYT_first_said) von Max Bittker inspiriert und dessen [Code](https://github.com/MaxBittker/nyt-first-said) als Startpunkt genutzt, jedoch zum großen Teil verändert. Aufbauend auf dem bisherigen Code wird nun ermittelt, wann ein Wort erstmals im Bundestagsplenum gesagt wurde - und in welchem Zusammenhang. 
+Das Projekt wurde durch den Twitter-Account [@NYT_first_said](https://x.com/NYT_first_said) von Max Bittker inspiriert und dessen [Code](https://github.com/MaxBittker/nyt-first-said) als Startpunkt genutzt, jedoch zum großen Teil verändert. Aufbauend auf dem bisherigen Code wird nun ermittelt, wann ein Wort erstmals im Bundestagsplenum gesagt wurde - und in welchem Zusammenhang.
 
 ## Funktionsweise
 
 Über eine vom Bundestag bereitgestellte [OpenData-API](https://dip.bundestag.de/%C3%BCber-dip/hilfe/api#content) wird täglich nach einem neuen Plenarprotokoll des Bundestags gesucht. Wird es gefunden, wird jedes einzelne Wort mit einer selbsterstellten Datenbank abgeglichen, die aus allen veröffentlichten Plenarprotokollen aufgebaut wurde. Sollte das Wort nicht in der Datenbank gefunden werden, wird es zusammen mit dem Satz, in dem es fiel, sowie der sprechenden Person (Redner:in, Präsidium oder Zwischenruf/Kommentar) sowohl in `parser/output/neue_woerter.csv` (Arbeitskopie zur Durchsicht) als auch in `parser/output/neue_woerter.db` (dauerhafte, durchsuchbare SQLite-Ablage) abgelegt und besagter Datenbank selbst hinzugefügt.
 
-Unregelmäßigkeiten entstehen z.B. durch Silbentrennungen, die nicht gut von Wortverbindungen getrennt werden können (z.B. Know- (neue Zeile) how) und Rechtschreibfehlern. 
+Unregelmäßigkeiten entstehen z.B. durch Silbentrennungen, die nicht gut von Wortverbindungen getrennt werden können (z.B. Know- (neue Zeile) how) und Rechtschreibfehlern.
 
 ## Architektur
 
@@ -19,7 +18,7 @@ Unregelmäßigkeiten entstehen z.B. durch Silbentrennungen, die nicht gut von Wo
 
 `post_queue.py`, `twitter_creds.py` und `mastodon_creds.py` enthalten die (aktuell nicht aufgerufene) Logik zum Posten neuer Wörter auf Mastodon/Twitter. Twitter wurde mittlerweile auskommentiert, weil der Bot nichts zu diesem Höllenort beitragen muss.
 
-`dpi_api.py` verbindet den Bot mit den Servern des Bundestags und sucht nach neuen Protokollen über weiterlaufende IDs. `api_functions.py` hilft bei der Abfrage.
+`dip_api.py` verbindet den Bot mit den Servern des Bundestags und sucht nach neuen Protokollen über weiterlaufende IDs. `api_functions.py` hilft bei der Abfrage.
 
 `xml_processing.py` verarbeitet das Protokoll und liefert über `get_redebeitraege()` pro Absatz ein strukturiertes Record mit Sprecherzuordnung (Redner:in, Präsidium oder Kommentar/Zwischenruf), Fraktion/Rolle und einer Zwischenfrage-Kennzeichnung.
 
@@ -37,7 +36,7 @@ Der Korpus wurde einmalig aus allen historischen Plenarprotokollen aufgebaut. Bu
 
 Für neuere Protokolle (reiches Format) lassen sich alle Dateien automatisiert per `download_new_format_xml.py` über die DIP-API holen. Für ältere Protokolle bietet die Open-Data-Seite des Bundestags kein Sammel-Archiv an — diese müssen manuell heruntergeladen und nach `parser/archive/` gelegt werden. Anschließend füllt `build_database_local.py` daraus den Korpus. Nach einem (Neu-)Aufbau muss `meta:id` in Redis manuell auf die zuletzt verarbeitete ID gesetzt werden, bevor `plenar.py` den Live-Betrieb aufnimmt.
 
-## DPI API 
+## DIP API
 
 Das Dokumentations- und Informationssystem für Parlamentsmaterialien stellt jährlich einen neuen öffentlichen Key aus. Der aktuelle bis Mai 2025 gültige Key ist unter `example.env` hinterlegt. Bei dauerhafter Nutzung empfiehlt es sich jedoch, [einen eigenen Key zu beantragen](https://dip.bundestag.de/%C3%BCber-dip/hilfe/api#content).
 
@@ -45,12 +44,10 @@ Das Dokumentations- und Informationssystem für Parlamentsmaterialien stellt jä
 
 Der Bot postete früher automatisiert auf Mastodon; das ist mit dem Umstieg auf CSV-/DB-Export für die manuelle Nachbearbeitung nicht mehr aktiv. `post_queue.py` und `mastodon_cred.py` sind unverändert im Repo vorhanden, werden aber von `plenar.py` nicht mehr aufgerufen. Für den Zugang zu Mastodon wurde [Mastodon.py](https://github.com/halcy/Mastodon.py) genutzt.
 
-Die früher genutzten Mastodon-Accounts: <a rel="me" href="https://mastodon.social/@BT_First_Said">@BT_First_Said@mastodon.social</a> und <a rel="me" href="https://mastodon.social/@FSBT_Kontext">@FSBT_Kontext@mastodon.social</a>.
-
-
 ## Was bedeutet "neues Wort"?
 
 Aus Gründen der Unterhaltung werden einige Worte aussortiert, die zwar tatsächlich zum ersten Mal so gesagt werden, aber nur bedingt an sich einen Informationswert haben. Folgendes wird z.B. versucht, herauszufiltern:
+
 - Plural
 - Genitiv
 - Wörter unter 5 Buchstaben — außer sie sind komplett großgeschrieben (Abkürzungen wie "DDR", "NATO" werden also erkannt, kurze Wortfragmente nicht)
@@ -58,7 +55,3 @@ Aus Gründen der Unterhaltung werden einige Worte aussortiert, die zwar tatsäch
 - Vor- und Nachnamen von Abgeordneten (laut MdB-Stammdaten seit der 1. Wahlperiode, siehe `utilities/load_namen.py`) — diese werden weiterhin im Korpus getrackt, aber aus der Export-CSV/DB herausgefiltert
 
 Gegenderte Formen (z.B. "Bundeskanzlerin", "Alterspräsidentin") werden dagegen bewusst **nicht** herausgefiltert, sondern als eigenständiges neues Wort erkannt — das erstmalige Auftreten einer weiblichen Form eines zuvor nur männlich besetzten Amts ist gerade ein bemerkenswerter Fund.
-
-
-
-

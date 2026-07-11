@@ -2,7 +2,7 @@ import logging
 import xml.etree.ElementTree as ET
 from dotenv import load_dotenv
 import os
-from dpi_api import get_url_content
+from dip_api import get_url_content
 
 
 
@@ -11,6 +11,8 @@ load_dotenv()
 
 # API Key aus dem Environment
 api_key = os.environ.get('BUNDESTAG_API_KEY')
+if not api_key:
+    raise RuntimeError('BUNDESTAG_API_KEY ist nicht gesetzt (.env pruefen)')
 
 
 # Speichert XML ab nach Download

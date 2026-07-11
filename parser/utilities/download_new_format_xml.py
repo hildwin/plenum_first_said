@@ -24,6 +24,8 @@ logging.basicConfig(
     datefmt='%Y-%m-%d %H:%M:%S')
 
 API_KEY = os.environ.get('BUNDESTAG_API_KEY')
+if not API_KEY:
+    raise RuntimeError('BUNDESTAG_API_KEY ist nicht gesetzt (.env pruefen)')
 SEARCH_URL = 'https://search.dip.bundestag.de/api/v1/plenarprotokoll-text'
 ARCHIVE_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', 'archive')
 

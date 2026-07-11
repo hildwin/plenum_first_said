@@ -1,7 +1,7 @@
 from dotenv import load_dotenv
 from database import r
 from requests.adapters import HTTPAdapter
-from dpi_api import get_url_content, add_protokoll
+from dip_api import get_url_content, add_protokoll
 import os
 import time
 import logging
@@ -17,6 +17,8 @@ load_dotenv()
 
 # API Key aus dem Environment
 api_key = os.environ.get('BUNDESTAG_API_KEY')
+if not api_key:
+    raise RuntimeError('BUNDESTAG_API_KEY ist nicht gesetzt (.env pruefen)')
 
 
 for x in range(4500, 5502):

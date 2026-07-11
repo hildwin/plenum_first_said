@@ -12,7 +12,7 @@ DB_PATH = os.path.join(OUTPUT_DIR, 'neue_woerter.db')
 CSV_FELDER = ['protokoll_id', 'datum', 'wort', 'satz', 'sprecher_typ', 'sprecher', 'fraktion', 'ist_zwischenfrage']
 
 
-# Liest Datum aus dem bereits vorhandenen protokoll:<id>-Hash (befüllt durch dpi_api.add_protokoll)
+# Liest Datum aus dem bereits vorhandenen protokoll:<id>-Hash (befüllt durch dip_api.add_protokoll)
 def _protokoll_datum(id):
     keys = r.hgetall('protokoll:' + str(id))
     datum = keys.get(b'datum')

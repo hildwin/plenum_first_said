@@ -6,7 +6,7 @@ import xml_processing
 from text_parse import process_woerter, prune
 from dotenv import load_dotenv
 import requests
-from dpi_api import add_protokoll
+from dip_api import add_protokoll
 import time
 import logging
 
@@ -21,6 +21,8 @@ load_dotenv()
 
 # API Key aus dem Environment
 api_key = os.environ.get('BUNDESTAG_API_KEY')
+if not api_key:
+    raise RuntimeError('BUNDESTAG_API_KEY ist nicht gesetzt (.env pruefen)')
     
 
 wordnum = 0

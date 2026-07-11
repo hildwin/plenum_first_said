@@ -1,7 +1,7 @@
 
 # -*- coding: utf-8 -*-
 import logging
-from dpi_api import find_new_doc
+from dip_api import find_new_doc
 from database import r
 from text_parse import process_woerter, prune
 from dotenv import load_dotenv
