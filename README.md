@@ -15,7 +15,7 @@ Unregelmäßigkeiten entstehen z.B. durch Silbentrennungen, die nicht gut von Wo
 
 ## Architektur
 
-`plenar.py` ist die Hauptfunktion, die den Rest orchestriert. Sie wird stündlich aufgerufen. `database.py` erlaubt eine Verbindung zur lokalen Redis Datenbank.
+`plenar.py` ist die Hauptfunktion, die den Rest orchestriert. Da in der Regel höchstens ein neues Protokoll pro Tag erscheint, reicht ein Cron-Aufruf alle 12 Stunden (z.B. 10 und 22 Uhr) statt stündlich. `database.py` erlaubt eine Verbindung zur lokalen Redis Datenbank.
 
 `post_queue.py`, `twitter_creds.py` und `mastodon_creds.py` enthalten die (aktuell nicht aufgerufene) Logik zum Posten neuer Wörter auf Mastodon/Twitter. Twitter wurde mittlerweile auskommentiert, weil der Bot nichts zu diesem Höllenort beitragen muss.
 
