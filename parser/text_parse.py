@@ -275,24 +275,25 @@ def prune(new_words, id):
     if not kandidaten:
         return
 
-    # LLM-basierte Nomen/Lemma-Klassifikation: laeuft NACH allen obigen Filtern,
-    # VOR dem Export. Bei jedem Fehler (Netzwerk, Rate-Limit, Refusal, kaputtes
-    # JSON) wird NICHT der ganze Tages-Export verworfen - nur dieser Filterschritt
-    # entfaellt, siehe _klassifiziere_kandidaten().
+    # LLM-basierte Wortart/Lemma-Klassifikation: laeuft NACH allen obigen Filtern,
+    # VOR dem Export. Filtert NICHT nach Wortart (Verben/Adjektive/etc. gehoeren
+    # genauso auf die Liste wie Nomen, da auch der Korpus alle Wortarten trackt)
+    # - dient nur der Lemma-Deduplizierung pro Wortart, um kuenftige Frachtausgleich/
+    # -s-artige Dopplungen zu verhindern. Bei jedem Fehler (Netzwerk, Rate-Limit,
+    # Refusal, kaputtes JSON) wird NICHT der ganze Tages-Export verworfen - nur
+    # der Lemma-Abgleich entfaellt, siehe _klassifiziere_kandidaten().
     klassifikation = _klassifiziere_kandidaten(kandidaten)
 
     for i, entry in enumerate(kandidaten):
         if klassifikation is not None:
             ergebnis = klassifikation.get(i)
             if ergebnis is not None:
-                if not ergebnis['ist_nomen']:
-                    continue
-
+                wortart = ergebnis['wortart']
                 lemma = ergebnis['lemma']
-                if ist_lemma_bekannt(lemma):
+                if ist_lemma_bekannt(wortart, lemma):
                     continue
 
-                merke_lemma(lemma, id)
+                merke_lemma(wortart, lemma, id)
             # ergebnis is None (Wort fehlte in der LLM-Antwort) -> konservativ
             # exportieren statt stillschweigend zu verwerfen.
 
@@ -305,7 +306,7 @@ def _klassifiziere_kandidaten(kandidaten):
     except Exception as e:
         logging.warning(
             'LLM-Klassifikation fehlgeschlagen (%s: %s) - Fallback: Export ohne '
-            'Nomen/Lemma-Filter fuer %d Kandidat(en).',
+            'Lemma-Abgleich fuer %d Kandidat(en).',
             type(e).__name__, e, len(kandidaten))
         return None
 

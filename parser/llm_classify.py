@@ -4,7 +4,7 @@ import json
 
 import anthropic
 from pydantic import BaseModel
-from typing import List
+from typing import List, Literal
 
 MODEL = 'claude-haiku-4-5'  # guenstig, fuer diese gebundene Klassifikationsaufgabe ausreichend;
                             # bei Qualitaetsproblemen (z.B. Faelle wie Altwohnungsmieten/-mieter)
@@ -13,10 +13,12 @@ MAX_TOKENS = 8192
 
 _client = None
 
+Wortart = Literal['Nomen', 'Verb', 'Adjektiv', 'Adverb', 'Sonstiges']
+
 
 class WortKlassifikation(BaseModel):
     index: int
-    ist_nomen: bool
+    wortart: Wortart
     lemma: str
 
 
@@ -28,17 +30,17 @@ SYSTEM_PROMPT = (
     "Du bist ein Linguistik-Assistent fuer deutsche Bundestagsprotokolle. Du bekommst "
     "eine Liste deutscher Woerter, jedes mit dem Satz, in dem es vorkam, sowie Sprecher/"
     "Fraktion. Fuer jedes Wort bestimmst du:\n"
-    "1. ist_nomen: Ist das Wort in diesem Satzkontext ein Nomen (Substantiv)? "
-    "Gross-/Kleinschreibung im Originaltext ist NICHT zuverlaessig (Behoerdentexte, "
-    "OCR-Fehler, Satzanfang) - entscheide anhand der tatsaechlichen Wortart im Satz.\n"
-    "2. lemma: Die Grundform/das Lemma (Nominativ Singular bei Nomen, Infinitiv bei "
-    "Verben, Positiv bei Adjektiven). Das Lemma MUSS morphologisch aus dem Wort selbst "
-    "ableitbar sein (gleicher Wortstamm) - erfinde niemals ein unabhaengiges, nur "
-    "thematisch verwandtes Wort als Lemma, auch wenn es im Satz naheliegend erscheint "
-    "(Beispiel fuer einen Fehler: 'Neue' in 'Neue Autobahnen wollt ihr bauen!' ist ein "
-    "flektiertes Adjektiv zu 'Autobahnen' - richtig waere ist_nomen=false, lemma='neu'; "
-    "'Auto' waere falsch, da es nicht der Wortstamm von 'Neue' ist). Satzanfang-"
-    "Grossschreibung ist dabei KEIN Hinweis auf ein Nomen, siehe Punkt 1.\n\n"
+    "1. wortart: 'Nomen', 'Verb', 'Adjektiv', 'Adverb' oder 'Sonstiges' - die tatsaechliche "
+    "Wortart im Satzkontext. Gross-/Kleinschreibung im Originaltext ist NICHT zuverlaessig "
+    "(Behoerdentexte, OCR-Fehler, Satzanfang) - entscheide anhand der Funktion im Satz, "
+    "nicht anhand der Schreibweise.\n"
+    "2. lemma: Die Grundform (Nominativ Singular bei Nomen, Infinitiv bei Verben, Positiv "
+    "bei Adjektiven/Adverbien). Das Lemma MUSS morphologisch aus dem Wort selbst ableitbar "
+    "sein (gleicher Wortstamm) - erfinde niemals ein unabhaengiges, nur thematisch "
+    "verwandtes Wort als Lemma, auch wenn es im Satz naheliegend erscheint (Beispiel fuer "
+    "einen Fehler: 'Neue' in 'Neue Autobahnen wollt ihr bauen!' ist ein flektiertes "
+    "Adjektiv zu 'Autobahnen' - richtig waere wortart='Adjektiv', lemma='neu'; 'Auto' waere "
+    "falsch, da es nicht der Wortstamm von 'Neue' ist).\n\n"
     "WICHTIG fuer lemma: echtes morphologisches/semantisches Verstaendnis, keine reine "
     "Endungs-Heuristik. Beispiel fuer FALSCHE Gleichsetzung: 'Altwohnungsmieten' (Plural "
     "von 'Altwohnungsmiete', die Zahlung) und 'Altwohnungsmieter' (die Person) sind ZWEI "
@@ -61,11 +63,11 @@ def _get_client():
 
 
 # entries: Liste von Dicts mit 'word', 'satz', 'sprecher', 'fraktion'.
-# Rueckgabe: Dict {index: {'ist_nomen': bool, 'lemma': str}} fuer jeden erfolgreich
+# Rueckgabe: Dict {index: {'wortart': str, 'lemma': str}} fuer jeden erfolgreich
 # klassifizierten Index. Fehlende Indizes = "nicht klassifiziert", vom Aufrufer
-# konservativ (exportieren) zu behandeln. Wirft bei jedem nicht verwertbaren
-# Ergebnis (API-Fehler, Refusal, kaputtes JSON) eine Exception - der Aufrufer
-# faengt das ab und faellt zurueck auf Export ohne Filterung.
+# konservativ (exportieren, ohne Lemma-Abgleich) zu behandeln. Wirft bei jedem
+# nicht verwertbaren Ergebnis (API-Fehler, Refusal, kaputtes JSON) eine Exception
+# - der Aufrufer faengt das ab und faellt zurueck auf Export ohne Lemma-Abgleich.
 def classify_words(entries):
     client = _get_client()
 
@@ -99,7 +101,7 @@ def classify_words(entries):
             logging.debug('LLM-Klassifikation: ungueltiger/doppelter Index %d ignoriert.', item.index)
             continue
         result[item.index] = {
-            'ist_nomen': bool(item.ist_nomen),
+            'wortart': item.wortart,
             'lemma': item.lemma.strip() or entries[item.index]['word'],
         }
 

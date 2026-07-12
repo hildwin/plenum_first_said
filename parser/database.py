@@ -211,21 +211,27 @@ def ist_bekannter_name(word):
     return bool(r.sismember(NAMEN_SET_KEY, word))
 
 
-# Lemma-Tracking (additiv, nur fuer Export-Filterung in prune() - siehe
+# Lemma-Tracking (additiv, nur fuer Export-Deduplizierung in prune() - siehe
 # STATUS.md "Weiterhin offen" #1). Wird ausschliesslich vorausschauend ab
 # Einfuehrung dieses Features befuellt, kein rueckwirkender Abgleich gegen
 # den historischen word:*-Korpus. word:*/check_newness bleiben unveraendert.
+# Pro Wortart getrennt (nicht nur pro Lemma), damit z.B. das Nomen "Bau" und
+# das Verb "bauen" trotz aehnlichem Wortstamm als unabhaengige Lemmata gelten.
 LEMMA_KEY_PREFIX = 'lemma:'
 
 
-def ist_lemma_bekannt(lemma):
-    return bool(r.hexists(LEMMA_KEY_PREFIX + lemma, 'id'))
+def _lemma_key(wortart, lemma):
+    return LEMMA_KEY_PREFIX + wortart + ':' + lemma
 
 
-def merke_lemma(lemma, id):
+def ist_lemma_bekannt(wortart, lemma):
+    return bool(r.hexists(_lemma_key(wortart, lemma), 'id'))
+
+
+def merke_lemma(wortart, lemma, id):
     try:
-        r.hset(LEMMA_KEY_PREFIX + lemma, 'word', lemma)
-        r.hset(LEMMA_KEY_PREFIX + lemma, 'id', id)
+        r.hset(_lemma_key(wortart, lemma), 'word', lemma)
+        r.hset(_lemma_key(wortart, lemma), 'id', id)
         return True
     except Exception as e:
         logging.exception(e)
