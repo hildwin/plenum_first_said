@@ -55,8 +55,13 @@ def pre_split_clean(text):
     regex_url = '(http|ftp|https|http)://([\w_-]+(?:(?:\.[\w_-]+)+))([\w.,@?^=%&:/~+#-]*[\w@?^=%&/~+#-])?'
     text = re.sub(regex_url, '', text) # URL-Filter
 
-    # Satzzeichen werden durch Leerzeichen ersetzt
-    punctuation = r"""#"!$%&'()*+,‚.":;<=>?@[\]^_`{|}~“”„’ʼ"""
+    # Satzzeichen werden durch Leerzeichen ersetzt. "-" und "--" (Bindestrich)
+    # bleiben bewusst aussen vor (Komposita wie "Deutsch-Franzoesisch" sollen
+    # erhalten bleiben) - der Halbgeviertstrich ist dagegen mit aufgenommen,
+    # da er im Deutschen nie fuer Komposita genutzt wird, sondern als
+    # Gedankenstrich, der bei alten digitalisierten Protokollen gelegentlich
+    # ohne Leerzeichen am Wort klebt (z.B. "zitieren" + Gedankenstrich).
+    punctuation = r"""#"!$%&'()*+,‚.":;<=>?@[\]^_`{|}~“”„’ʼ—"""
     for character in punctuation:
         text = text.replace(character, ' ')
     text = text.replace(u'\xa0', u' ') # Sonderzeichen entfernen
