@@ -57,12 +57,12 @@ def pre_split_clean(text):
 
     # Satzzeichen werden durch Leerzeichen ersetzt. "-" und "--" (Bindestrich)
     # bleiben bewusst aussen vor (Komposita wie "Deutsch-Franzoesisch" sollen
-    # erhalten bleiben) - der Halbgeviertstrich und der Aufzaehlungspunkt sind
-    # dagegen mit aufgenommen, da sie im Deutschen nie Teil eines Wortes sind,
-    # sondern bei alten digitalisierten Protokollen gelegentlich ohne
-    # Leerzeichen am Wort kleben (z.B. "zitieren" + Gedankenstrich, oder
-    # Aufzaehlungspunkt + "entfallen").
-    punctuation = r"""#"!$%&'()*+,‚.":;<=>?@[\]^_`{|}~“”„’ʼ—•"""
+    # erhalten bleiben) - Halbgeviertstrich, Aufzaehlungspunkt und invertiertes
+    # Ausrufezeichen sind dagegen mit aufgenommen, da sie im Deutschen nie Teil
+    # eines Wortes sind, sondern bei alten digitalisierten Protokollen
+    # gelegentlich ohne Leerzeichen am Wort kleben (z.B. "zitieren" +
+    # Gedankenstrich, Aufzaehlungspunkt + "entfallen", "¡" + "Wiedervereinigung").
+    punctuation = r"""#"!$%&'()*+,‚.":;<=>?@[\]^_`{|}~“”„’ʼ—•¡"""
     for character in punctuation:
         text = text.replace(character, ' ')
     text = text.replace(u'\xa0', u' ') # Sonderzeichen entfernen
