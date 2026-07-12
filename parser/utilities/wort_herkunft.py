@@ -26,6 +26,18 @@ def wort_herkunft(word):
     }
 
 
+# Holt per Scan-Seite die 'id' aller uebergebenen Keys in einem einzigen
+# Roundtrip statt einem HGET pro Key - macht bei entfernten Redis-Instanzen
+# (z.B. per SSH-Tunnel) den Unterschied zwischen Sekunden und Minuten.
+def _ids_gepipelined(keys):
+    if not keys:
+        return []
+    pipe = database.r.pipeline()
+    for key in keys:
+        pipe.hget(key, 'id')
+    return pipe.execute()
+
+
 # Zaehlt, wie viele Woerter pro Wahlperiode zuerst dort auftauchten.
 # Scannt alle word:*-Keys - bei einem grossen Korpus spuerbar CPU-intensiv,
 # daher am besten ausserhalb eines laufenden Korpus-Aufbaus ausfuehren.
@@ -36,18 +48,23 @@ def uebersicht_nach_wahlperiode():
 
     while True:
         cursor, keys = database.r.scan(cursor=cursor, match='word:*', count=1000)
+        ids = _ids_gepipelined(keys)
 
-        for key in keys:
-            id_bytes = database.r.hget(key, 'id')
-            if not id_bytes:
-                continue
-            id = id_bytes.decode('utf-8')
-
-            if id not in protokoll_cache:
-                wp_bytes = database.r.hget('protokoll:' + id, 'wahlperiode')
+        neue_ids = list({
+            id_bytes.decode('utf-8') for id_bytes in ids
+            if id_bytes and id_bytes.decode('utf-8') not in protokoll_cache
+        })
+        if neue_ids:
+            wp_pipe = database.r.pipeline()
+            for id in neue_ids:
+                wp_pipe.hget('protokoll:' + id, 'wahlperiode')
+            for id, wp_bytes in zip(neue_ids, wp_pipe.execute()):
                 protokoll_cache[id] = wp_bytes.decode('utf-8') if wp_bytes else None
 
-            wahlperiode = protokoll_cache[id]
+        for id_bytes in ids:
+            if not id_bytes:
+                continue
+            wahlperiode = protokoll_cache.get(id_bytes.decode('utf-8'))
             if wahlperiode:
                 anzahl_pro_wp[wahlperiode] += 1
 
@@ -60,17 +77,16 @@ def uebersicht_nach_wahlperiode():
 # Listet alle Woerter auf, deren "zuerst gesehen"-ID auf ein bestimmtes
 # Protokoll zeigt. Scannt wie uebersicht_nach_wahlperiode() den kompletten
 # Korpus - fuer eine einzelne Datei waehrend eines laufenden Erstaufbaus
-# unproblematisch (Lesezugriff, kein Einfluss auf den Build-Prozess), kann
-# bei grossem Korpus aber ein paar Sekunden bis Minuten dauern.
+# unproblematisch (Lesezugriff, kein Einfluss auf den Build-Prozess).
 def woerter_fuer_protokoll(id):
     treffer = []
     cursor = 0
 
     while True:
         cursor, keys = database.r.scan(cursor=cursor, match='word:*', count=1000)
+        ids = _ids_gepipelined(keys)
 
-        for key in keys:
-            id_bytes = database.r.hget(key, 'id')
+        for key, id_bytes in zip(keys, ids):
             if id_bytes and id_bytes.decode('utf-8') == id:
                 treffer.append(key.decode('utf-8')[len('word:'):])
 
