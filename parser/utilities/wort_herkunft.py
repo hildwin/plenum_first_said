@@ -57,8 +57,41 @@ def uebersicht_nach_wahlperiode():
     return anzahl_pro_wp
 
 
+# Listet alle Woerter auf, deren "zuerst gesehen"-ID auf ein bestimmtes
+# Protokoll zeigt. Scannt wie uebersicht_nach_wahlperiode() den kompletten
+# Korpus - fuer eine einzelne Datei waehrend eines laufenden Erstaufbaus
+# unproblematisch (Lesezugriff, kein Einfluss auf den Build-Prozess), kann
+# bei grossem Korpus aber ein paar Sekunden bis Minuten dauern.
+def woerter_fuer_protokoll(id):
+    treffer = []
+    cursor = 0
+
+    while True:
+        cursor, keys = database.r.scan(cursor=cursor, match='word:*', count=1000)
+
+        for key in keys:
+            id_bytes = database.r.hget(key, 'id')
+            if id_bytes and id_bytes.decode('utf-8') == id:
+                treffer.append(key.decode('utf-8')[len('word:'):])
+
+        if cursor == 0:
+            break
+
+    return sorted(treffer)
+
+
 def main():
-    if len(sys.argv) > 1:
+    if len(sys.argv) > 2 and sys.argv[1] == '--protokoll':
+        id = sys.argv[2]
+        print('Scanne Korpus nach Woertern mit Quelle Protokoll {} (kann dauern)...'.format(id))
+        woerter = woerter_fuer_protokoll(id)
+        if woerter:
+            print('{} Wort/Woerter zuerst gefunden in Protokoll {}:'.format(len(woerter), id))
+            for wort in woerter:
+                print(' -', wort)
+        else:
+            print('Keine Woerter mit erster Fundstelle in Protokoll {} gefunden.'.format(id))
+    elif len(sys.argv) > 1:
         word = sys.argv[1]
         herkunft = wort_herkunft(word)
         if herkunft:
