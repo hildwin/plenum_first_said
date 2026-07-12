@@ -26,9 +26,11 @@ Unregelmäßigkeiten entstehen z.B. durch Silbentrennungen, die nicht gut von Wo
 
 `export.py` schreibt jedes neu gefundene Wort samt Satzkontext und Sprecherzuordnung in `parser/output/neue_woerter.csv` und `parser/output/neue_woerter.db` (SQLite).
 
+`llm_classify.py` klassifiziert die nach den bestehenden Filtern verbliebenen Kandidatenwörter eines Protokolls in einem einzigen gebündelten Claude-API-Aufruf (Lemma + Ist-es-ein-Nomen), damit `prune()` echte Wortarterkennung statt einer reinen Endungs-Heuristik nutzen kann. Schlägt der Aufruf fehl (Netzwerk, Rate-Limit, o.ä.), exportiert `prune()` die Kandidaten unverändert ohne Nomen-/Lemma-Filter weiter — der Tages-Export geht dadurch nie verloren.
+
 Im Ordner `utilities` finden sich Hilfsskripte: `build_database_local.py` verarbeitet lokal in `parser/archive/` abgelegte Protokoll-XMLs in den Korpus (für den Erstaufbau, siehe unten). `download_new_format_xml.py` lädt Protokolle im neuen, reich strukturierten XML-Format automatisiert über die DIP-API herunter. `load_namen.py` befüllt den Namensfilter (siehe "Was bedeutet neues Wort?") aus den MdB-Stammdaten, wahlweise aus einer lokalen Datei oder per `--url` direkt von bundestag.de. `wort_herkunft.py` schlägt nach, in welcher Sitzung/Wahlperiode ein Wort im Korpus zuerst auftauchte.
 
-Über das Paket [python-dotenv](https://github.com/theskumar/python-dotenv) werden API-Schlüssel durch Umgebungsvariablen bereitgestellt. Dazu muss eine `.env` Datei in der Basis des Projektes existieren. In dem Repo liegt die Datei `example.env`, die alle Variabeln aufzählt und den momentan öffentlichen API Key des Bundestags beinhaltet.
+Über das Paket [python-dotenv](https://github.com/theskumar/python-dotenv) werden API-Schlüssel durch Umgebungsvariablen bereitgestellt. Dazu muss eine `.env` Datei in der Basis des Projektes existieren. In dem Repo liegt die Datei `example.env`, die alle Variabeln aufzählt und den momentan öffentlichen API Key des Bundestags beinhaltet. Für `llm_classify.py` muss zusätzlich ein eigener `ANTHROPIC_API_KEY` gesetzt werden (kein öffentlicher Key hinterlegt).
 
 ## Datenbank-Erstaufbau
 
@@ -53,5 +55,7 @@ Aus Gründen der Unterhaltung werden einige Worte aussortiert, die zwar tatsäch
 - Wörter unter 5 Buchstaben — außer sie sind komplett großgeschrieben (Abkürzungen wie "DDR", "NATO" werden also erkannt, kurze Wortfragmente nicht)
 - Gängige Funktionswörter (Artikel, Präpositionen, Konjunktionen, Pronomen, Hilfs-/Modalverben, Füllpartikeln — siehe `FUELLWOERTER` in `text_parse.py`)
 - Vor- und Nachnamen von Abgeordneten (laut MdB-Stammdaten seit der 1. Wahlperiode, siehe `utilities/load_namen.py`) — diese werden weiterhin im Korpus getrackt, aber aus der Export-CSV/DB herausgefiltert
+- Wörter, die laut LLM-Klassifikation (`llm_classify.py`) im Satzkontext kein Nomen sind
+- Wörter, deren Lemma laut LLM-Klassifikation bereits bekannt ist (verhindert künftige Dopplungen wie z.B. Genitiv-/Plural-Varianten desselben Wortstamms) — dieser Abgleich läuft nur vorausschauend ab Einführung des Features, nicht rückwirkend gegen den bereits bestehenden historischen Korpus
 
 Gegenderte Formen (z.B. "Bundeskanzlerin", "Alterspräsidentin") werden dagegen bewusst **nicht** herausgefiltert, sondern als eigenständiges neues Wort erkannt — das erstmalige Auftreten einer weiblichen Form eines zuvor nur männlich besetzten Amts ist gerade ein bemerkenswerter Fund.

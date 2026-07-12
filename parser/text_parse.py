@@ -5,7 +5,8 @@ from string import punctuation
 import xml_processing
 import difflib
 import export
-from database import check_newness, ist_bekannter_name
+import llm_classify
+from database import check_newness, ist_bekannter_name, ist_lemma_bekannt, merke_lemma
 
 # Beginn des Dokumentes finden mit Rechtschreibfehlern. 
 def find_beginn(text):
@@ -242,6 +243,7 @@ FUELLWOERTER = frozenset({
 def prune(new_words, id):
 
     pruned_entries = find_matches(new_words)
+    kandidaten = []
 
     # Entfernt Kompositionen, die eine Silbentrennung in der Mitte der Zeile sein könnten.
     for entry in pruned_entries:
@@ -268,7 +270,44 @@ def prune(new_words, id):
         if ist_bekannter_name(wort):
             continue
 
+        kandidaten.append(entry)
+
+    if not kandidaten:
+        return
+
+    # LLM-basierte Nomen/Lemma-Klassifikation: laeuft NACH allen obigen Filtern,
+    # VOR dem Export. Bei jedem Fehler (Netzwerk, Rate-Limit, Refusal, kaputtes
+    # JSON) wird NICHT der ganze Tages-Export verworfen - nur dieser Filterschritt
+    # entfaellt, siehe _klassifiziere_kandidaten().
+    klassifikation = _klassifiziere_kandidaten(kandidaten)
+
+    for i, entry in enumerate(kandidaten):
+        if klassifikation is not None:
+            ergebnis = klassifikation.get(i)
+            if ergebnis is not None:
+                if not ergebnis['ist_nomen']:
+                    continue
+
+                lemma = ergebnis['lemma']
+                if ist_lemma_bekannt(lemma):
+                    continue
+
+                merke_lemma(lemma, id)
+            # ergebnis is None (Wort fehlte in der LLM-Antwort) -> konservativ
+            # exportieren statt stillschweigend zu verwerfen.
+
         export.append_row(entry, id)
+
+
+def _klassifiziere_kandidaten(kandidaten):
+    try:
+        return llm_classify.classify_words(kandidaten)
+    except Exception as e:
+        logging.warning(
+            'LLM-Klassifikation fehlgeschlagen (%s: %s) - Fallback: Export ohne '
+            'Nomen/Lemma-Filter fuer %d Kandidat(en).',
+            type(e).__name__, e, len(kandidaten))
+        return None
 
 
 
