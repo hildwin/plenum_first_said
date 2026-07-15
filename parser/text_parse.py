@@ -53,7 +53,7 @@ def dehyphenate(text):
 # Cleaning vor dem Wordsplitting
 def pre_split_clean(text):
 
-    regex_url = '(http|ftp|https|http)://([\w_-]+(?:(?:\.[\w_-]+)+))([\w.,@?^=%&:/~+#-]*[\w@?^=%&/~+#-])?'
+    regex_url = r'(http|ftp|https|http)://([\w_-]+(?:(?:\.[\w_-]+)+))([\w.,@?^=%&:/~+#-]*[\w@?^=%&/~+#-])?'
     text = re.sub(regex_url, '', text) # URL-Filter
 
     # Satzzeichen werden durch Leerzeichen ersetzt. "-" und "--" (Bindestrich)
@@ -108,7 +108,7 @@ def wordsfilter(words, id):
     new_words = []
     
     # Wort hat nur Buchstaben
-    regchar = re.compile('([A-Z])|([a-z])\w+')
+    regchar = re.compile(r'([A-Z])|([a-z])\w+')
 
     for word in words:
         if regchar.search(word):
