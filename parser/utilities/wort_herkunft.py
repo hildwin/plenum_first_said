@@ -7,6 +7,7 @@ from collections import Counter
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), '..'))
 
 import database
+import dwds_api
 
 
 # Liefert Wahlperiode/Sitzungsnummer/Datum fuer die Quelle eines einzelnen Wortes
@@ -96,7 +97,27 @@ def woerter_fuer_protokoll(id):
     return sorted(treffer)
 
 
+def _zeige_dwds_vergleich(word):
+    try:
+        beleg = dwds_api.fruehester_beleg(word)
+    except Exception as e:
+        print('DWDS-Abfrage fehlgeschlagen ({}: {})'.format(type(e).__name__, e))
+        return
+
+    if beleg:
+        print('DWDS (Korpus "Bundestagsprotokolle"): fruehester Beleg am {} - {} ({} Treffer insgesamt)'.format(
+            beleg['datum'], beleg['quelle'], beleg['anzahl_treffer_gesamt']))
+        if beleg['url']:
+            print('  ', beleg['url'])
+    else:
+        print('DWDS (Korpus "Bundestagsprotokolle"): kein Beleg gefunden.')
+
+
 def main():
+    zeige_dwds = '--dwds' in sys.argv
+    if zeige_dwds:
+        sys.argv.remove('--dwds')
+
     if len(sys.argv) > 2 and sys.argv[1] == '--protokoll':
         id = sys.argv[2]
         print('Scanne Korpus nach Woertern mit Quelle Protokoll {} (kann dauern)...'.format(id))
@@ -116,6 +137,9 @@ def main():
                 herkunft['protokollnummer'], herkunft['datum']))
         else:
             print('"{}" nicht im Korpus gefunden.'.format(word))
+
+        if zeige_dwds:
+            _zeige_dwds_vergleich(word)
     else:
         print('Scanne kompletten Korpus (kann bei grossem Datenbestand dauern)...')
         anzahl_pro_wp = uebersicht_nach_wahlperiode()
