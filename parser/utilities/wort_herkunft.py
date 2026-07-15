@@ -109,6 +109,9 @@ def _zeige_dwds_vergleich(word):
             beleg['datum'], beleg['quelle'], beleg['anzahl_treffer_gesamt']))
         if beleg['url']:
             print('  ', beleg['url'])
+        if not beleg['lemma_suche']:
+            print('   (Fallback: reine Wortform-Suche, da "{}" selbst kein DWDS-Lemma ist - '
+                  'moeglicherweise existieren frueher belegte Flexionsvarianten mit demselben Lemma.)'.format(word))
     else:
         print('DWDS (Korpus "Bundestagsprotokolle"): kein Beleg gefunden.')
 
