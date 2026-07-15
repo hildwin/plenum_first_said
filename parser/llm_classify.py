@@ -32,9 +32,9 @@ SYSTEM_PROMPT = (
     "Fraktion. Fuer jedes Wort bestimmst du:\n"
     "1. wortart: 'Nomen', 'Verb', 'Adjektiv', 'Adverb' oder 'Sonstiges' - die tatsaechliche "
     "Wortart im Satzkontext. Gross-/Kleinschreibung im Originaltext ist NICHT zuverlaessig "
-    "(Behoerdentexte, OCR-Fehler, Satzanfang) - entscheide anhand der Funktion im Satz, "
+    "(Behoerdentexte, Flüchtigkeitsfehler, Satzanfang) - entscheide anhand der Funktion im Satz, "
     "nicht anhand der Schreibweise.\n"
-    "2. lemma: Die Grundform (Nominativ Singular bei Nomen, Infinitiv bei Verben, Positiv "
+    "2. lemma: Die Grundform (Nominativ Singular bei Nomen, Infinitiv bei Verben, unflektierte Positivform "
     "bei Adjektiven/Adverbien). Das Lemma MUSS morphologisch aus dem Wort selbst ableitbar "
     "sein (gleicher Wortstamm) - erfinde niemals ein unabhaengiges, nur thematisch "
     "verwandtes Wort als Lemma, auch wenn es im Satz naheliegend erscheint (Beispiel fuer "
@@ -94,6 +94,8 @@ def classify_words(entries):
         raise RuntimeError('Anthropic-Antwort refused')
 
     parsed = response.parsed_output
+    if parsed is None:
+        raise RuntimeError(f'Anthropic-Antwort nicht parsebar (stop_reason={response.stop_reason!r})')
 
     result = {}
     for item in parsed.words:
