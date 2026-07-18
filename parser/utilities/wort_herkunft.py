@@ -48,7 +48,11 @@ def uebersicht_nach_wahlperiode():
     cursor = 0
 
     while True:
-        cursor, keys = database.r.scan(cursor=cursor, match='word:*', count=1000)
+        # type: ignore[misc] - redis-py deklariert scan() als "-> ResponseT"
+        # (Union[Awaitable, Any], gemeinsam fuer sync/async-Client), Pylance
+        # meckert daher faelschlich ueber Awaitable-Unpacking; database.r ist
+        # aber garantiert der synchrone Client und liefert hier ein echtes Tupel.
+        cursor, keys = database.r.scan(cursor=cursor, match='word:*', count=1000)  # type: ignore[misc]
         ids = _ids_gepipelined(keys)
 
         neue_ids = list({
@@ -84,7 +88,7 @@ def woerter_fuer_protokoll(id):
     cursor = 0
 
     while True:
-        cursor, keys = database.r.scan(cursor=cursor, match='word:*', count=1000)
+        cursor, keys = database.r.scan(cursor=cursor, match='word:*', count=1000)  # type: ignore[misc]
         ids = _ids_gepipelined(keys)
 
         for key, id_bytes in zip(keys, ids):
