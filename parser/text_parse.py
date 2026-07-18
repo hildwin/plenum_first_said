@@ -114,7 +114,7 @@ def wordsfilter(words, id):
         if regchar.search(word):
 
             # Enfernen von sonst nicht filterbaren Aufzählungen
-            if word.endswith('-,') or word.endswith('-') or word.endswith('–') or word.startswith('-'):
+            if word.endswith('-,') or word.endswith('-') or word.endswith('–') or word.startswith('-') or word.startswith('–'):
                 continue     
 
             if check_word(word, id):
