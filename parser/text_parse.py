@@ -64,7 +64,7 @@ def pre_split_clean(text):
     # Protokollen gelegentlich ohne Leerzeichen am Wort kleben (z.B. "zitieren"
     # + Gedankenstrich, Aufzaehlungspunkt + "entfallen", "¡" + "Wiedervereinigung",
     # "Debatte" + "»").
-    punctuation = r"""#"!$%&'()*+,‚.":;<=>?@[\]^_`{|}~“”„‘’ʼ—•¡»«°"""
+    punctuation = r"""#"!$%&'()*+,‚.":;<=>?@[\]^_`{|}~“”„‘’ʼ—•¡»«°…"""
     for character in punctuation:
         text = text.replace(character, ' ')
     text = text.replace(u'\xa0', u' ') # Sonderzeichen entfernen
