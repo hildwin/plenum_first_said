@@ -68,7 +68,18 @@ def pre_split_clean(text):
     for character in punctuation:
         text = text.replace(character, ' ')
     text = text.replace(u'\xa0', u' ') # Sonderzeichen entfernen
-    text = text.replace('  ', ' ') # Doppelze Leerzeichen zu einfachen. 
+    # Weicher Trennstrich (U+00AD, unsichtbar ausser bei Zeilenumbruch) wird
+    # ENTFERNT statt durch Leerzeichen ersetzt - er markiert nur eine
+    # moegliche Trennstelle, keine echte Worttrennung ("Alters\xadentlastung"
+    # soll "Altersentlastung" ergeben, nicht in zwei Woerter zerfallen).
+    text = text.replace('\xad', '')
+    # Geschuetzter Bindestrich (U+2011) verhaelt sich in jeder Hinsicht wie ein
+    # normaler Bindestrich (nur ohne Zeilenumbruch) - auf "-" normalisieren,
+    # statt ihn separat wie einen eigenen Zeichentyp zu behandeln. Verhindert
+    # auch, dass z.B. "x-fachen" (normaler Bindestrich) und "x‑fachen"
+    # (U+2011) als zwei verschiedene Woerter im Korpus landen.
+    text = text.replace('‑', '-')
+    text = text.replace('  ', ' ') # Doppelze Leerzeichen zu einfachen.
    
     return text
 
