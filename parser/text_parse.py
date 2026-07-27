@@ -80,8 +80,31 @@ def pre_split_clean(text):
     # (U+2011) als zwei verschiedene Woerter im Korpus landen.
     text = text.replace('‑', '-')
     text = text.replace('  ', ' ') # Doppelze Leerzeichen zu einfachen.
-   
+
     return text
+
+# Bereinigt ein EINZELNES, bereits im Korpus gespeichertes Wort um dieselben
+# Zeichen-Artefakte, die die laufende Pipeline mittlerweile abfaengt - fuer
+# den rueckwirkenden Bereinigungs-Lauf ueber den historischen Korpus-Bestand
+# (siehe utilities/bereinige_korpus_zeichen.py). Anders als wordsfilter()
+# (das Woerter mit Rand-Bindestrich komplett verwirft) wird hier der Rand-
+# Bindestrich/-Halbgeviertstrich abgeschnitten und der Rest behalten - ein
+# rueckwirkend geloeschter Eintrag waere sonst der einzige Beleg fuer dieses
+# Wort zu diesem Zeitpunkt und wuerde das "zuerst gesagt"-Datum verfaelschen.
+# Rueckgabe None, wenn das Ergebnis mehrdeutig ist (leer nach Bereinigung,
+# oder in mehrere Teile zerfallen) - solche Faelle brauchen manuelle Pruefung
+# statt automatischer Verarbeitung.
+def clean_word(word):
+    cleaned = pre_split_clean(word)
+    teile = cleaned.split()
+
+    if len(teile) != 1:
+        return None
+
+    cleaned = re.sub(r'^[-–]+', '', teile[0])
+    cleaned = re.sub(r'[-–]+$', '', cleaned)
+
+    return cleaned or None
 
 # Wörter splitten am Leerzeichen
 def wordsplitter(text):
