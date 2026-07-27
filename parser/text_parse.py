@@ -224,8 +224,10 @@ def wordsfilter(words, id, pruefe_neuheit=None):
         
     return new_words
 
-# Absätze in Sätze splitten (einfache Heuristik ohne Abkürzungserkennung -
-# reicht aus, um ein neues Wort im vollständigen Satzkontext zu zeigen).
+# Absätze in Sätze splitten (einfache Heuristik mit punktueller
+# Abkürzungserkennung - siehe ABKUERZUNGEN_OHNE_SATZENDE unten - reicht aus,
+# um ein neues Wort im vollständigen Satzkontext zu zeigen, ohne eine volle
+# NLP-Satzgrenzenerkennung zu benoetigen).
 # (?<!\d\.) verhindert das Trennen an Ordnungszahl-Abkuerzungen wie "21."
 # (z.B. "des 21. Deutschen Bundestages") - ohne diese Ausnahme schnitt die
 # Heuristik den Satz genau an dieser Stelle ab, obwohl er erkennbar
@@ -235,8 +237,35 @@ def wordsfilter(words, id, pruefe_neuheit=None):
 # statt weniger Kontext), anders als das bisherige Abschneiden mitten im Satz.
 SATZ_ENDE = re.compile(r'(?<!\d\.)(?<=[.!?])\s+')
 
+# Bekannte Abkuerzungen, nach deren Punkt KEIN Satzende folgt - vor allem
+# Anrede-/Titel-Abkuerzungen vor Namen, sehr haeufig in Bundestagsprotokollen
+# (z.B. "(Dr. Johannes Fechner [SPD]: ...)" bei Zwischenrufen). Da ein
+# Lookbehind in SATZ_ENDE (anders als bei der Ordnungszahl-Ausnahme oben)
+# nicht mehrere unterschiedlich lange Abkuerzungen gleichzeitig abdecken
+# kann, werden faelschlich getrennte Fragmente stattdessen in split_saetze()
+# nachtraeglich wieder zusammengefuegt.
+ABKUERZUNGEN_OHNE_SATZENDE = frozenset({
+    'Dr', 'Prof', 'Nr', 'Abs', 'Art', 'bzw', 'ca', 'usw', 'etc', 'vgl',
+    'sog', 'Str', 'Mio', 'Mrd', 'Hr', 'Fr',
+})
+
+_ABKUERZUNG_AM_ENDE = re.compile(r'([A-Za-zÄÖÜäöüß]+)\.$')
+
+
 def split_saetze(text):
-    return [satz for satz in SATZ_ENDE.split(text.strip()) if satz]
+    rohteile = [satz for satz in SATZ_ENDE.split(text.strip()) if satz]
+
+    saetze = []
+    for teil in rohteile:
+        if saetze:
+            match = _ABKUERZUNG_AM_ENDE.search(saetze[-1])
+            if match and match.group(1) in ABKUERZUNGEN_OHNE_SATZENDE:
+                saetze[-1] = saetze[-1] + ' ' + teil
+                continue
+
+        saetze.append(teil)
+
+    return saetze
 
 
 # Verarbeitet die strukturierten Redebeiträge (neues Protokollformat):
