@@ -69,17 +69,27 @@ def pre_split_clean(text):
         text = text.replace(character, ' ')
     text = text.replace(u'\xa0', u' ') # Sonderzeichen entfernen
     # Weicher Trennstrich (U+00AD, unsichtbar ausser bei Zeilenumbruch) hat
-    # zwei verschiedene Bedeutungen je nach Position: MITTEN im Wort (gefolgt
-    # von einem Nicht-Leerzeichen) stehen beide Haelften bereits da, nur
-    # zusammenfuegen ("Alters\xadentlastung" -> "Altersentlastung"). AM
-    # WORTENDE (gefolgt von Leerzeichen/Textende) fehlt dagegen die
-    # Fortsetzung - das ist eine Silbentrennung mit verlorener zweiter
-    # Haelfte (z.B. "ausver\xad" aus "ausverkauft" o.ae., zweite Haelfte in
-    # einem anderen Satz/Absatz). Dort NICHT einfach entfernen (sonst
-    # entsteht ein falsches, abgeschnittenes Wort wie "ausver"), sondern auf
-    # den normalen Bindestrich "-" abbilden - die bestehende Rand-Bindestrich-
-    # Erkennung (wordsfilter()/clean_word_parts()) verwirft/markiert das
-    # Fragment dann wie gewohnt.
+    # DREI verschiedene Bedeutungen je nach Position:
+    # 1. Zwischen einem Buchstaben und einem Grossbuchstaben, OHNE bereits
+    #    vorhandenen echten Bindestrich davor (z.B. "Karl\xadHeinz"): Der
+    #    Zeilenumbruch lag genau an der Stelle eines ECHTEN Bindestrichs bei
+    #    hyphenierten Doppelnamen/Komposita ("Karl-Heinz", "NATO-Staaten") -
+    #    dort auf "-" abbilden, sonst verschmelzen die Teile faelschlich zu
+    #    "KarlHeinz". Steht schon ein echter Bindestrich davor (z.B.
+    #    "Hans-\xadDietrich"), greift stattdessen Fall 2 (einfach entfernen),
+    #    sonst entstuende ein doppelter Bindestrich.
+    # 2. Sonst MITTEN im Wort (gefolgt von einem Nicht-Leerzeichen): beide
+    #    Haelften stehen bereits da, nur zusammenfuegen ("Alters\xadentlastung"
+    #    -> "Altersentlastung").
+    # 3. AM WORTENDE (gefolgt von Leerzeichen/Textende) fehlt dagegen die
+    #    Fortsetzung - das ist eine Silbentrennung mit verlorener zweiter
+    #    Haelfte (z.B. "ausver\xad" aus "ausverkauft" o.ae., zweite Haelfte in
+    #    einem anderen Satz/Absatz). Dort NICHT einfach entfernen (sonst
+    #    entsteht ein falsches, abgeschnittenes Wort wie "ausver"), sondern
+    #    auf den normalen Bindestrich "-" abbilden - die bestehende Rand-
+    #    Bindestrich-Erkennung (wordsfilter()/clean_word_parts()) verwirft/
+    #    markiert das Fragment dann wie gewohnt.
+    text = re.sub(r'(?<=[A-Za-zÄÖÜäöüß])\xad(?=[A-ZÄÖÜ])', '-', text)
     text = re.sub(r'\xad(?=\S)', '', text)
     text = text.replace('\xad', '-')
     # Geschuetzter Bindestrich (U+2011) verhaelt sich in jeder Hinsicht wie ein
