@@ -47,6 +47,17 @@ SYSTEM_PROMPT = (
     "verschiedene Lemmata, kein Genitiv/Plural voneinander, obwohl die Oberflaechenform "
     "sehr aehnlich ist. Beispiel fuer RICHTIGE Gleichsetzung: 'Frachtausgleichs' (Genitiv) "
     "und 'Frachtausgleich' (Grundform) haben beide das Lemma 'Frachtausgleich'.\n\n"
+    "WICHTIG fuer lemma: IMMER genau EIN einzelnes Wort, NIEMALS mehrere durch Leerzeichen "
+    "getrennte Woerter oder eine ganze Wortgruppe/Phrase aus dem Satz - auch wenn das Wort "
+    "Teil einer laengeren Wortgruppe im Satzkontext ist. Beispiel fuer einen Fehler: 'Thesaurierte' "
+    "in 'Thesaurierte Gewinne, also Gewinne, die im Unternehmen bleiben, ...' ist ein flektiertes "
+    "Adjektiv/Partizip zu 'Gewinne' (wie 'gewaehlte Vertreter') - richtig waere wortart='Adjektiv', "
+    "lemma='thesauriert'; wortart='Nomen', lemma='Thesaurierter Gewinn' waere falsch (falsche "
+    "Wortart UND mehrwortiges Lemma statt der Grundform des isolierten Wortes). Weiteres Beispiel: "
+    "'Guest' (aus 'Guest Houses') hat lemma='Guest', NICHT lemma='Guest House'.\n\n"
+    "WICHTIG fuer lemma: Pruefe vor der Antwort die Rechtschreibung deines Lemmas noch "
+    "einmal genau (korrektes Deutsch, kein fehlender/vertauschter Buchstabe). Beispiel fuer "
+    "einen Fehler: lemma='Klappstul' statt korrekt 'Klappstuhl'.\n\n"
     "Antworte fuer JEDES Wort aus der Eingabeliste per index, auch bei Unsicherheit "
     "(dann nach bestem Wissen). Erfinde keine zusaetzlichen Woerter/Indizes."
 )
@@ -102,9 +113,23 @@ def classify_words(entries):
         if not (0 <= item.index < len(entries)) or item.index in result:
             logging.debug('LLM-Klassifikation: ungueltiger/doppelter Index %d ignoriert.', item.index)
             continue
+
+        lemma = item.lemma.strip() or entries[item.index]['word']
+
+        # Verteidigung gegen Prompt-Nichteinhaltung (beobachtet: "Thesaurierter
+        # Gewinn"/"Guest House" statt Einzelwort-Lemma "thesauriert"/"Guest") -
+        # ein mehrwortiges Lemma darf nicht in lemma:* landen, unabhaengig
+        # davon, ob der Prompt das verhindern soll. Wird wie ein fehlendes
+        # Antwort-Item behandelt (konservativ exportieren ohne Lemma-Abgleich).
+        if ' ' in lemma:
+            logging.warning(
+                'LLM-Klassifikation: mehrwortiges Lemma "%s" fuer Wort "%s" verworfen (Index %d).',
+                lemma, entries[item.index]['word'], item.index)
+            continue
+
         result[item.index] = {
             'wortart': item.wortart,
-            'lemma': item.lemma.strip() or entries[item.index]['word'],
+            'lemma': lemma,
         }
 
     missing = len(entries) - len(result)
