@@ -9,7 +9,7 @@ OUTPUT_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'output')
 CSV_PATH = os.path.join(OUTPUT_DIR, 'neue_woerter.csv')
 DB_PATH = os.path.join(OUTPUT_DIR, 'neue_woerter.db')
 
-CSV_FELDER = ['protokoll_id', 'datum', 'wort', 'satz', 'sprecher_typ', 'sprecher', 'fraktion', 'ist_zwischenfrage']
+CSV_FELDER = ['protokoll_id', 'datum', 'wort', 'wortart', 'lemma', 'satz', 'sprecher_typ', 'sprecher', 'fraktion', 'ist_zwischenfrage']
 
 
 # Liest Datum aus dem bereits vorhandenen protokoll:<id>-Hash (befüllt durch dip_api.add_protokoll)
@@ -26,6 +26,8 @@ def _init_db(conn):
             protokoll_id TEXT NOT NULL,
             datum TEXT,
             wort TEXT NOT NULL,
+            wortart TEXT,
+            lemma TEXT,
             satz TEXT,
             sprecher_typ TEXT,
             sprecher TEXT,
@@ -51,8 +53,8 @@ def _append_db(zeile):
         _init_db(conn)
         conn.execute(
             '''INSERT INTO neue_woerter
-               (protokoll_id, datum, wort, satz, sprecher_typ, sprecher, fraktion, ist_zwischenfrage)
-               VALUES (:protokoll_id, :datum, :wort, :satz, :sprecher_typ, :sprecher, :fraktion, :ist_zwischenfrage)''',
+               (protokoll_id, datum, wort, wortart, lemma, satz, sprecher_typ, sprecher, fraktion, ist_zwischenfrage)
+               VALUES (:protokoll_id, :datum, :wort, :wortart, :lemma, :satz, :sprecher_typ, :sprecher, :fraktion, :ist_zwischenfrage)''',
             zeile,
         )
 
@@ -67,6 +69,11 @@ def append_row(entry, id):
         'protokoll_id': str(id),
         'datum': _protokoll_datum(id),
         'wort': entry['word'],
+        # Nur gefuellt, wenn die LLM-Klassifikation fuer dieses Wort
+        # erfolgreich war (siehe prune() in text_parse.py) - sonst leer,
+        # NICHT das Fehlen einer Klassifikation vortaeuschen.
+        'wortart': entry.get('wortart', ''),
+        'lemma': entry.get('lemma', ''),
         'satz': entry.get('satz'),
         'sprecher_typ': entry.get('sprecher_typ'),
         'sprecher': entry.get('sprecher'),
