@@ -217,6 +217,10 @@ def ist_bekannter_name(word):
 # den historischen word:*-Korpus. word:*/check_newness bleiben unveraendert.
 # Pro Wortart getrennt (nicht nur pro Lemma), damit z.B. das Nomen "Bau" und
 # das Verb "bauen" trotz aehnlichem Wortstamm als unabhaengige Lemmata gelten.
+# Ergaenzend siehe ist_wort_bekannt() weiter unten: deckt den Fall ab, dass
+# das Lemma selbst (unabhaengig von lemma:*) schon lange als eigener word:*-
+# Eintrag existiert (z.B. "einknicken" seit 1990) - lemma:* allein haette das
+# nicht erkannt, da es erst seit Einfuehrung von Option A befuellt wird.
 LEMMA_KEY_PREFIX = 'lemma:'
 
 
@@ -236,5 +240,16 @@ def merke_lemma(wortart, lemma, id):
     except Exception as e:
         logging.exception(e)
         raise
+
+
+# Prueft, ob das Lemma selbst (unabhaengig von der aktuell klassifizierten
+# Flexionsform) bereits als eigenstaendiger word:*-Eintrag existiert - z.B.
+# "einknickend" (Verb, Lemma "einknicken") ist eine neue Oberflaechenform,
+# aber "einknicken" selbst steht schon seit 1990 im Korpus. Rein lesend,
+# bewusst OHNE check_age()-Mutation wie in check_newness(): ein gefundenes
+# word:<lemma> gehoert einer ANDEREN Wortform, deren "zuerst gesehen"-ID
+# durch diese Pruefung nicht veraendert werden soll.
+def ist_wort_bekannt(word):
+    return bool(r.hexists('word:' + word, 'word'))
 
 

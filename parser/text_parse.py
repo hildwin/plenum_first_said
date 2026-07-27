@@ -6,7 +6,7 @@ import xml_processing
 import difflib
 import export
 import llm_classify
-from database import check_newness, ist_bekannter_name, ist_lemma_bekannt, merke_lemma
+from database import check_newness, ist_bekannter_name, ist_lemma_bekannt, merke_lemma, ist_wort_bekannt
 
 # Beginn des Dokumentes finden mit Rechtschreibfehlern. 
 def find_beginn(text):
@@ -405,7 +405,16 @@ def prune(new_words, id, merke_lemma_fn=merke_lemma, export_fn=export.append_row
             if ergebnis is not None:
                 wortart = ergebnis['wortart']
                 lemma = ergebnis['lemma']
-                if ist_lemma_bekannt(wortart, lemma):
+                # ist_wort_bekannt() faengt den Fall ab, dass das Lemma selbst
+                # (unabhaengig von der lemma:*-Prospektiv-Tracking) schon
+                # lange als eigener word:*-Eintrag existiert (z.B.
+                # "einknicken" seit 1990, waehrend "einknickend" gerade erst
+                # zum ersten Mal auftaucht) - lemma:* allein wuerde das nicht
+                # erkennen, da es erst seit Einfuehrung von Option A befuellt
+                # wird. Bei Treffer NICHT merke_lemma_fn() aufrufen (waere
+                # eine falsche "zuerst gesehen"-ID fuer ein Wort, das laengst
+                # bekannt ist).
+                if ist_lemma_bekannt(wortart, lemma) or ist_wort_bekannt(lemma):
                     continue
 
                 merke_lemma_fn(wortart, lemma, id)

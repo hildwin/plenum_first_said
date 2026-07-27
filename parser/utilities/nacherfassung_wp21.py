@@ -117,10 +117,37 @@ def sammle_neue_woerter(filename):
     return id, new_words
 
 
-def main():
-    anzahl_dateien = int(sys.argv[1]) if len(sys.argv) > 1 else 3
+# Erlaubt --start <sitzungsnummer>, um den Testlauf an einer beliebigen
+# WP21-Sitzung zu beginnen, statt immer bei 21001 anzufangen. Sicher, weil
+# war_zuerst_hier() rein lesend gegen den bereits vollstaendigen Korpus
+# prueft - die Verarbeitungsreihenfolge der Testdateien spielt dafuer keine
+# Rolle (anders als beim urspruenglichen Erstaufbau, der lediglich fuer den
+# Lemma-Dedupe innerhalb desselben Testlaufs relevant waere, die ist in der
+# Testphase aber ohnehin per _kein_lemma_merken() deaktiviert).
+def _parse_args(argv):
+    argv = list(argv)
+    start_sitzung = None
 
-    dateien = sorted(f for f in os.listdir(ARCHIVE_DIR) if f.startswith('21') and f.endswith('.xml'))[:anzahl_dateien]
+    if '--start' in argv:
+        idx = argv.index('--start')
+        start_sitzung = int(argv[idx + 1])
+        del argv[idx:idx + 2]
+
+    anzahl_dateien = int(argv[0]) if argv else 3
+
+    return start_sitzung, anzahl_dateien
+
+
+def main():
+    start_sitzung, anzahl_dateien = _parse_args(sys.argv[1:])
+
+    dateien = sorted(f for f in os.listdir(ARCHIVE_DIR) if f.startswith('21') and f.endswith('.xml'))
+
+    if start_sitzung is not None:
+        start_dateiname = '21{:03d}.xml'.format(start_sitzung)
+        dateien = [f for f in dateien if f >= start_dateiname]
+
+    dateien = dateien[:anzahl_dateien]
     print('Testlauf ueber', len(dateien), 'Datei(en):', dateien)
     print('Export-Ziel (Testphase):', TEST_CSV)
     print()
