@@ -84,33 +84,37 @@ def _dateiname(dokument):
 
 
 # Laedt die reich strukturierte XML eines Dokuments herunter, falls verfuegbar.
-# Gibt den Dateinamen zurueck, wenn heruntergeladen oder bereits vorhanden war;
-# None, wenn kein Bundestagsprotokoll oder kein neues Format verfuegbar ist.
+# Rueckgabe (filename, war_neu): filename ist None, wenn kein Bundestags-
+# protokoll oder kein neues Format verfuegbar ist. war_neu unterscheidet
+# einen echten Download von einer bereits vorhandenen Datei - wichtig fuer
+# den Aufrufer, der sonst jede der tausenden bereits vorhandenen Dateien
+# faelschlich als "neu heruntergeladen" ausgeben wuerde (kein echter erneuter
+# Download, aber irrefuehrende Anzeige).
 def download_xml(dokument):
 
     if dokument.get('herausgeber') != 'BT':
-        return None
+        return None, False
 
     xml_url = dokument.get('fundstelle', {}).get('xml_url')
     if not xml_url:
-        return None
+        return None, False
 
     filename = _dateiname(dokument)
     filepath = os.path.join(ARCHIVE_DIR, filename)
 
     if os.path.exists(filepath):
-        return filename
+        return filename, False
 
     response = get_url_content(xml_url)
     if not response or response.status_code != 200:
         logging.warning('Download fehlgeschlagen: %s', xml_url)
-        return None
+        return None, False
 
     with open(filepath, 'wb') as f:
         f.write(response.content)
 
     logging.info('Heruntergeladen: %s', filename)
-    return filename
+    return filename, True
 
 
 def main():
@@ -119,21 +123,25 @@ def main():
     for wahlperiode in WAHLPERIODEN:
         print('--- Wahlperiode', wahlperiode, '---')
         anzahl_neu = 0
+        anzahl_vorhanden = 0
         anzahl_uebersprungen = 0
 
         for i, dokument in enumerate(iter_dokumente(wahlperiode)):
-            filename = download_xml(dokument)
+            filename, war_neu = download_xml(dokument)
 
-            if filename:
+            if war_neu:
                 anzahl_neu += 1
                 print(' ', filename)
+            elif filename:
+                anzahl_vorhanden += 1
             else:
                 anzahl_uebersprungen += 1
 
             if i % 10 == 0:
                 time.sleep(1)
 
-        print('WP', wahlperiode, ':', anzahl_neu, 'heruntergeladen/vorhanden,', anzahl_uebersprungen, 'uebersprungen (kein neues Format oder kein BT-Protokoll)')
+        print('WP', wahlperiode, ':', anzahl_neu, 'neu heruntergeladen,', anzahl_vorhanden,
+              'bereits vorhanden,', anzahl_uebersprungen, 'uebersprungen (kein neues Format oder kein BT-Protokoll)')
 
     print('Fertig.')
 
