@@ -226,7 +226,14 @@ def wordsfilter(words, id, pruefe_neuheit=None):
 
 # Absätze in Sätze splitten (einfache Heuristik ohne Abkürzungserkennung -
 # reicht aus, um ein neues Wort im vollständigen Satzkontext zu zeigen).
-SATZ_ENDE = re.compile(r'(?<=[.!?])\s+')
+# (?<!\d\.) verhindert das Trennen an Ordnungszahl-Abkuerzungen wie "21."
+# (z.B. "des 21. Deutschen Bundestages") - ohne diese Ausnahme schnitt die
+# Heuristik den Satz genau an dieser Stelle ab, obwohl er erkennbar
+# weiterging. Kompromiss: ein Satz, der zufaellig mit einer blossen Zahl
+# endet (z.B. "...im Jahr 2024."), wird dadurch faelschlich mit dem
+# naechsten Satz zusammengefuehrt statt korrekt getrennt - unkritisch (mehr
+# statt weniger Kontext), anders als das bisherige Abschneiden mitten im Satz.
+SATZ_ENDE = re.compile(r'(?<!\d\.)(?<=[.!?])\s+')
 
 def split_saetze(text):
     return [satz for satz in SATZ_ENDE.split(text.strip()) if satz]
