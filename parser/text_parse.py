@@ -268,6 +268,23 @@ def split_saetze(text):
     return saetze
 
 
+# Liefert die "Satz"-Einheiten fuer einen Redebeitrag. Bei Kommentaren
+# (Zwischenrufe) wird bewusst NICHT in einzelne Saetze aufgeteilt, sondern
+# immer der komplette Klammertext als ein Block behandelt - Zwischenrufe
+# enthalten haeufig mehrere kurze Saetze innerhalb derselben Klammer (z.B.
+# "(Zuruf: Genug jetzt! Jetzt hoeren Sie mal auf mit den Sprachbausteinen!)"),
+# und split_saetze() wuerde diese an der echten Satzgrenze dazwischen
+# trennen - dann ginge bei einem Fund im zweiten Teil die oeffnende Klammer
+# samt Sprecherzuordnung verloren. Ein Zwischenruf ist im Original ohnehin
+# immer eine zusammengehoerige Einheit.
+def saetze_fuer_beitrag(beitrag):
+    if beitrag['typ'] == 'Kommentar':
+        text = beitrag['text'].strip()
+        return [text] if text else []
+
+    return split_saetze(beitrag['text'])
+
+
 # Verarbeitet die strukturierten Redebeiträge (neues Protokollformat):
 # jeder gefundene neue Wort-Treffer trägt Satzkontext und Sprecherzuordnung.
 def process_redebeitraege(redebeitraege, id):
@@ -275,7 +292,7 @@ def process_redebeitraege(redebeitraege, id):
     new_words = []
 
     for beitrag in redebeitraege:
-        for satz in split_saetze(beitrag['text']):
+        for satz in saetze_fuer_beitrag(beitrag):
             text = pre_split_clean(satz)
             text = dehyphenate(text)
             words = wordsplitter(text)

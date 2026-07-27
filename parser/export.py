@@ -1,4 +1,5 @@
 import csv
+import datetime
 import logging
 import os
 import sqlite3
@@ -12,11 +13,25 @@ DB_PATH = os.path.join(OUTPUT_DIR, 'neue_woerter.db')
 CSV_FELDER = ['protokoll_id', 'datum', 'wort', 'wortart', 'lemma', 'satz', 'sprecher_typ', 'sprecher', 'fraktion', 'ist_zwischenfrage']
 
 
-# Liest Datum aus dem bereits vorhandenen protokoll:<id>-Hash (befüllt durch dip_api.add_protokoll)
+# Liest Datum aus dem bereits vorhandenen protokoll:<id>-Hash (befüllt durch
+# dip_api.add_protokoll()/xml_processing.get_protokoll_metadata(), dort
+# jeweils im deutschen Format TT.MM.JJJJ). Fuer den Export auf ISO (JJJJ-MM-TT)
+# umgestellt - TT.MM.JJJJ wird von Excel je nach Laendereinstellung nicht
+# zuverlaessig erkannt (teils als Text importiert, teils Tag/Monat vertauscht),
+# ISO 8601 ist dagegen unabhaengig von der Locale eindeutig. Die Rohablage in
+# Redis bleibt bewusst unveraendert (andere Konsumenten wie wort_herkunft.py
+# erwarten weiterhin TT.MM.JJJJ).
 def _protokoll_datum(id):
     keys = r.hgetall('protokoll:' + str(id))
     datum = keys.get(b'datum')
-    return datum.decode('utf-8') if datum else None
+    if not datum:
+        return None
+
+    datum = datum.decode('utf-8')
+    try:
+        return datetime.datetime.strptime(datum, '%d.%m.%Y').strftime('%Y-%m-%d')
+    except ValueError:
+        return datum
 
 
 def _init_db(conn):

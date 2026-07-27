@@ -94,7 +94,7 @@ def sammle_neue_woerter(filename):
 
     new_words = []
     for beitrag in redebeitraege:
-        for satz in text_parse.split_saetze(beitrag['text']):
+        for satz in text_parse.saetze_fuer_beitrag(beitrag):
             text = text_parse.pre_split_clean(satz)
             text = text_parse.dehyphenate(text)
             words = text_parse.wordsplitter(text)
