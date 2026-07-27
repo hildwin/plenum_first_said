@@ -7,8 +7,10 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), '..'))
 
 import database
+import export
 import xml_processing
 import text_parse
+from database import merke_lemma
 
 # Holt rueckwirkend nach, was build_database_local.py beim Erstaufbau fuer
 # WP21 verworfen hat: Die pro Datei tatsaechlich neu gefundenen Woerter
@@ -23,12 +25,10 @@ import text_parse
 # aktuell verarbeiteten Datei entspricht - nur dann war DIESE Sitzung
 # tatsaechlich die erste Fundstelle.
 #
-# Testphase (siehe STATUS.md): Export in eine separate CSV statt der
-# produktiven neue_woerter.csv/.db, und merke_lemma() wird NICHT aufgerufen
-# (kein Schreibzugriff auf die von plenar.py mitgenutzten lemma:*-Keys),
-# bis die Strategie an einer Stichprobe geprueft und bestaetigt ist. Erst
-# danach auf export.append_row/merke_lemma (echte Ziele) umstellen und auf
-# alle WP21-Dateien ausweiten.
+# Per Default ein reiner Testlauf (Export in eine separate CSV statt der
+# produktiven neue_woerter.csv/.db, merke_lemma() wird nicht aufgerufen) -
+# erst mit --apply werden tatsaechlich die produktiven Ziele
+# (export.append_row/merke_lemma) beschrieben.
 
 ARCHIVE_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', 'archive')
 TEST_CSV = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', 'output', 'neue_woerter_wp21_test.csv')
@@ -149,7 +149,12 @@ def _parse_args(argv):
 
 
 def main():
-    start_sitzung, anzahl_dateien = _parse_args(sys.argv[1:])
+    argv = list(sys.argv[1:])
+    apply = '--apply' in argv
+    if apply:
+        argv.remove('--apply')
+
+    start_sitzung, anzahl_dateien = _parse_args(argv)
 
     dateien = sorted(f for f in os.listdir(ARCHIVE_DIR) if f.startswith('21') and f.endswith('.xml'))
 
@@ -158,18 +163,26 @@ def main():
         dateien = [f for f in dateien if f >= start_dateiname]
 
     dateien = dateien[:anzahl_dateien]
-    print('Testlauf ueber', len(dateien), 'Datei(en):', dateien)
-    print('Export-Ziel (Testphase):', TEST_CSV)
+
+    if apply:
+        merke_lemma_fn, export_fn = merke_lemma, export.append_row
+        ziel = 'PRODUKTIV: neue_woerter.csv/.db + lemma:*-Keys'
+    else:
+        merke_lemma_fn, export_fn = _kein_lemma_merken, _test_export
+        ziel = 'Testphase: ' + TEST_CSV
+
+    print('Lauf ueber', len(dateien), 'Datei(en):', dateien)
+    print('Export-Ziel:', ziel)
     print()
 
     for filename in dateien:
         id, new_words = sammle_neue_woerter(filename)
         print(filename, '->', len(new_words), 'tatsaechlich neue Woerter (vor Lemma-Dedupe)')
 
-        text_parse.prune(new_words, id, merke_lemma_fn=_kein_lemma_merken, export_fn=_test_export)
+        text_parse.prune(new_words, id, merke_lemma_fn=merke_lemma_fn, export_fn=export_fn)
 
     print()
-    print('Fertig. Ergebnis in', TEST_CSV, 'zur Durchsicht.')
+    print('Fertig.', 'Ergebnis in produktiven Dateien.' if apply else 'Ergebnis in {} zur Durchsicht.'.format(TEST_CSV))
 
 
 if __name__ == '__main__':
