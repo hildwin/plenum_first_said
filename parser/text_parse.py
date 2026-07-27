@@ -68,11 +68,20 @@ def pre_split_clean(text):
     for character in punctuation:
         text = text.replace(character, ' ')
     text = text.replace(u'\xa0', u' ') # Sonderzeichen entfernen
-    # Weicher Trennstrich (U+00AD, unsichtbar ausser bei Zeilenumbruch) wird
-    # ENTFERNT statt durch Leerzeichen ersetzt - er markiert nur eine
-    # moegliche Trennstelle, keine echte Worttrennung ("Alters\xadentlastung"
-    # soll "Altersentlastung" ergeben, nicht in zwei Woerter zerfallen).
-    text = text.replace('\xad', '')
+    # Weicher Trennstrich (U+00AD, unsichtbar ausser bei Zeilenumbruch) hat
+    # zwei verschiedene Bedeutungen je nach Position: MITTEN im Wort (gefolgt
+    # von einem Nicht-Leerzeichen) stehen beide Haelften bereits da, nur
+    # zusammenfuegen ("Alters\xadentlastung" -> "Altersentlastung"). AM
+    # WORTENDE (gefolgt von Leerzeichen/Textende) fehlt dagegen die
+    # Fortsetzung - das ist eine Silbentrennung mit verlorener zweiter
+    # Haelfte (z.B. "ausver\xad" aus "ausverkauft" o.ae., zweite Haelfte in
+    # einem anderen Satz/Absatz). Dort NICHT einfach entfernen (sonst
+    # entsteht ein falsches, abgeschnittenes Wort wie "ausver"), sondern auf
+    # den normalen Bindestrich "-" abbilden - die bestehende Rand-Bindestrich-
+    # Erkennung (wordsfilter()/clean_word_parts()) verwirft/markiert das
+    # Fragment dann wie gewohnt.
+    text = re.sub(r'\xad(?=\S)', '', text)
+    text = text.replace('\xad', '-')
     # Geschuetzter Bindestrich (U+2011) verhaelt sich in jeder Hinsicht wie ein
     # normaler Bindestrich (nur ohne Zeilenumbruch) - auf "-" normalisieren,
     # statt ihn separat wie einen eigenen Zeichentyp zu behandeln. Verhindert
@@ -83,28 +92,65 @@ def pre_split_clean(text):
 
     return text
 
+# Zeichen, bei denen ein historischer Korpus-Eintrag mit mehreren Ergebnis-
+# Teilen (siehe clean_word_parts()) sicher in einzelne Woerter aufgesplittet
+# werden darf - gegen ~260 Stichproben aus dem historischen Bestand ohne
+# Gegenbeispiel verifiziert (Bahnstrecken wie "Koeln—Frankfurt", Gegensaetze
+# wie "Bund—Laender", Gedankenstrich-Sprechpausen wie "ist—nicht"). Bewusst
+# NICHT die Ellipse "…" (nur 3 Belege gefunden, davon "Im…tenz" ein klares
+# Gegenbeispiel - dort ersetzt "…" einen fehlenden Buchstaben, kein Trenner
+# zwischen zwei echten Woertern) und NICHT das Apostroph-artige "‘" (z.B.
+# "wer‘s", "d‘Arc" - Kontraktion/Fremdwort, kein zweites eigenstaendiges
+# Wort). Fuer alles ausserhalb dieser Liste bleibt ein Mehrfach-Ergebnis
+# mehrdeutig und wird nicht automatisch aufgesplittet.
+HARTE_TRENNER = ('—',)
+
+
 # Bereinigt ein EINZELNES, bereits im Korpus gespeichertes Wort um dieselben
-# Zeichen-Artefakte, die die laufende Pipeline mittlerweile abfaengt - fuer
-# den rueckwirkenden Bereinigungs-Lauf ueber den historischen Korpus-Bestand
+# Zeichen-Artefakte, die die laufende Pipeline mittlerweile abfaengt, und
+# liefert das Ergebnis als Liste (0, 1 oder mehrere Woerter) - fuer den
+# rueckwirkenden Bereinigungs-Lauf ueber den historischen Korpus-Bestand
 # (siehe utilities/bereinige_korpus_zeichen.py). Anders als wordsfilter()
-# (das Woerter mit Rand-Bindestrich komplett verwirft) wird hier der Rand-
-# Bindestrich/-Halbgeviertstrich abgeschnitten und der Rest behalten - ein
-# rueckwirkend geloeschter Eintrag waere sonst der einzige Beleg fuer dieses
-# Wort zu diesem Zeitpunkt und wuerde das "zuerst gesagt"-Datum verfaelschen.
-# Rueckgabe None, wenn das Ergebnis mehrdeutig ist (leer nach Bereinigung,
-# oder in mehrere Teile zerfallen) - solche Faelle brauchen manuelle Pruefung
-# statt automatischer Verarbeitung.
-def clean_word(word):
+# (das Woerter mit Rand-Bindestrich komplett verwirft) wird ein Bindestrich
+# am WORTANFANG abgeschnitten und der Rest behalten - ein rueckwirkend
+# geloeschter Eintrag waere sonst der einzige Beleg fuer dieses Wort zu
+# diesem Zeitpunkt und wuerde das "zuerst gesagt"-Datum verfaelschen. Ein
+# Bindestrich am WORTENDE wird dagegen NICHT abgeschnitten+behalten (anders
+# als zunaechst umgesetzt) - er kann eine echte Silbentrennung mit
+# verlorener zweiter Haelfte anzeigen (z.B. "ausver-" aus "ausverkauft",
+# siehe pre_split_clean()) und wuerde sonst ein falsches, abgeschnittenes
+# Wort im Korpus erzeugen. Ein verbleibender Bindestrich am Wortende macht
+# daher das GESAMTE Ergebnis mehrdeutig (leere Liste), auch wenn andere
+# Teile eines Mehrfach-Splits fuer sich genommen unproblematisch waeren.
+#
+# Enthaelt "word" keinen der HARTE_TRENNER-Zeichen, bleibt die bisherige
+# strenge 1-Teil-oder-nichts-Regel bestehen (leere Liste bei Mehrdeutigkeit)
+# - sicherer Default fuer alle noch nicht explizit geprueften Trennzeichen.
+def clean_word_parts(word):
     cleaned = pre_split_clean(word)
-    teile = cleaned.split()
+    rohteile = cleaned.split()
 
-    if len(teile) != 1:
-        return None
+    if not any(z in word for z in HARTE_TRENNER) and len(rohteile) != 1:
+        return []
 
-    cleaned = re.sub(r'^[-–]+', '', teile[0])
-    cleaned = re.sub(r'[-–]+$', '', cleaned)
+    teile = []
+    for teil in rohteile:
+        teil = re.sub(r'^[-–]+', '', teil)
 
-    return cleaned or None
+        if re.search(r'[-–]$', teil):
+            return []
+
+        if teil:
+            teile.append(teil)
+
+    return teile
+
+
+# Wie clean_word_parts(), aber fuer den Fall, dass genau EIN Ergebnis-Wort
+# erwartet wird. Rueckgabe None bei Mehrdeutigkeit (leer oder mehrteilig).
+def clean_word(word):
+    teile = clean_word_parts(word)
+    return teile[0] if len(teile) == 1 else None
 
 # Wörter splitten am Leerzeichen
 def wordsplitter(text):

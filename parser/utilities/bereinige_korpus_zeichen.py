@@ -6,7 +6,7 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), '..'))
 
 import database
-from text_parse import clean_word
+from text_parse import clean_word_parts
 
 # Bereinigt rueckwirkend die Zeichen-Artefakte (Geviertstrich, Halbgeviert-
 # strich, Gradzeichen, Ellipse, oeffnendes einfaches Anfuehrungszeichen,
@@ -22,16 +22,24 @@ from text_parse import clean_word
 # Scannt alle word:*-Keys (nur Key-Namen, kein Redis-Roundtrip fuer den
 # Bereinigungs-Check selbst) und behandelt jeden "dirty" Fund (bereinigte
 # Form weicht vom gespeicherten Wort ab) wie folgt:
-#   - Bereinigte Form existiert noch nicht als eigener Key -> umbenennen.
-#   - Bereinigte Form existiert schon -> die chronologisch AELTERE der beiden
-#     IDs gewinnt (Vergleich wie check_age() in database.py), der jeweils
-#     unterlegene Key wird geloescht.
-#   - clean_word() liefert None (Ergebnis leer oder in mehrere Teile
-#     zerfallen) -> nicht automatisch verarbeitet, nur zur manuellen Pruefung
+#   - clean_word_parts() liefert genau EIN Ergebnis-Wort, das noch nicht
+#     existiert -> umbenennen.
+#   - clean_word_parts() liefert genau EIN Ergebnis-Wort, das schon
+#     existiert -> die chronologisch AELTERE der beiden IDs gewinnt
+#     (Vergleich wie check_age() in database.py).
+#   - clean_word_parts() liefert MEHRERE Ergebnis-Woerter (z.B. historische
+#     Bahnstrecken-/Gegensatzpaare wie "Koeln—Frankfurt" von vor dem
+#     urspruenglichen Geviertstrich-Fix) -> jedes Ergebnis-Wort wird
+#     einzeln wie oben behandelt (umbenennen/mergen), der urspruengliche
+#     Mehrfach-Key anschliessend geloescht.
+#   - clean_word_parts() liefert eine leere Liste (Ergebnis leer, oder
+#     mehrdeutiger Mehrfach-Fund ausserhalb der als sicher geltenden
+#     Trennzeichen, z.B. Apostroph-Kontraktionen oder echte OCR-Buchstaben-
+#     luecken) -> nicht automatisch verarbeitet, nur zur manuellen Pruefung
 #     aufgelistet.
 #
 # Per Default ein reiner Dry-Run (nur Ausgabe, keine Schreibzugriffe) -
-# erst mit --apply werden tatsaechlich RENAME/HSET/DELETE ausgefuehrt.
+# erst mit --apply werden tatsaechlich HSET/DELETE ausgefuehrt.
 
 
 def _protokoll_sortkey(id):
@@ -55,6 +63,32 @@ def _aeltere_id(a, b):
         return a
 
     return a if sortkey_a <= sortkey_b else b
+
+
+# Sorgt dafuer, dass zielwort im Korpus existiert und die chronologisch
+# aelteste bekannte ID traegt. Rueckgabe 'umbenannt' (Zielwort war neu) oder
+# 'gemergt' (Zielwort existierte schon).
+def _uebernehme_in(quellwort, dirty_id, zielwort, apply):
+    ziel_key = 'word:' + zielwort
+    ziel_id_bytes = database.r.hget(ziel_key, 'id')
+
+    if ziel_id_bytes is None:
+        print('UMBENENNEN: "{}" -> "{}" (id={})'.format(quellwort, zielwort, dirty_id))
+        if apply:
+            database.r.hset(ziel_key, 'word', zielwort)
+            database.r.hset(ziel_key, 'id', dirty_id)
+        return 'umbenannt'
+
+    ziel_id = ziel_id_bytes.decode('utf-8')
+    gewinner_id = _aeltere_id(ziel_id, dirty_id) if dirty_id else ziel_id
+
+    print('MERGE: "{}" (id={}) + "{}" (id={}) -> "{}" behaelt id={}'.format(
+        quellwort, dirty_id, zielwort, ziel_id, zielwort, gewinner_id))
+
+    if apply and gewinner_id != ziel_id:
+        database.r.hset(ziel_key, 'id', gewinner_id)
+
+    return 'gemergt'
 
 
 def bereinige(apply=False):
@@ -81,40 +115,28 @@ def bereinige(apply=False):
         for key in keys:
             key_str = key.decode('utf-8')
             word = key_str[len('word:'):]
-            cleaned = clean_word(word)
+            teile = clean_word_parts(word)
 
-            if cleaned is None:
-                manuelle_pruefung.append(word)
+            if len(teile) == 1 and teile[0] == word:
+                unveraendert += 1
                 continue
 
-            if cleaned == word:
-                unveraendert += 1
+            if not teile:
+                manuelle_pruefung.append(word)
                 continue
 
             dirty_id_bytes = database.r.hget(key_str, 'id')
             dirty_id = dirty_id_bytes.decode('utf-8') if dirty_id_bytes else None
-            clean_key = 'word:' + cleaned
-            clean_id_bytes = database.r.hget(clean_key, 'id')
 
-            if clean_id_bytes is None:
-                print('UMBENENNEN: "{}" -> "{}" (id={})'.format(word, cleaned, dirty_id))
-                if apply:
-                    database.r.rename(key_str, clean_key)
-                    database.r.hset(clean_key, 'word', cleaned)
-                umbenannt += 1
-                continue
-
-            clean_id = clean_id_bytes.decode('utf-8')
-            gewinner_id = _aeltere_id(clean_id, dirty_id) if dirty_id else clean_id
-
-            print('MERGE: "{}" (id={}) + "{}" (id={}) -> "{}" behaelt id={}'.format(
-                word, dirty_id, cleaned, clean_id, cleaned, gewinner_id))
+            for zielwort in teile:
+                ergebnis = _uebernehme_in(word, dirty_id, zielwort, apply)
+                if ergebnis == 'umbenannt':
+                    umbenannt += 1
+                else:
+                    gemergt += 1
 
             if apply:
-                if gewinner_id != clean_id:
-                    database.r.hset(clean_key, 'id', gewinner_id)
                 database.r.delete(key_str)
-            gemergt += 1
 
         if cursor == 0:
             break
