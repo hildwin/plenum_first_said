@@ -124,13 +124,23 @@ def sammle_neue_woerter(filename):
 # Rolle (anders als beim urspruenglichen Erstaufbau, der lediglich fuer den
 # Lemma-Dedupe innerhalb desselben Testlaufs relevant waere, die ist in der
 # Testphase aber ohnehin per _kein_lemma_merken() deaktiviert).
+# Akzeptiert sowohl die reine Sitzungsnummer ("50") als auch die volle
+# Dateiname-Schreibweise mit WP-Praefix ("21050"), da beides eine
+# naheliegende Eingabe ist.
+def _sitzungsnummer(wert):
+    wert = str(wert)
+    if wert.startswith('21') and len(wert) > 3:
+        wert = wert[2:]
+    return int(wert)
+
+
 def _parse_args(argv):
     argv = list(argv)
     start_sitzung = None
 
     if '--start' in argv:
         idx = argv.index('--start')
-        start_sitzung = int(argv[idx + 1])
+        start_sitzung = _sitzungsnummer(argv[idx + 1])
         del argv[idx:idx + 2]
 
     anzahl_dateien = int(argv[0]) if argv else 3
