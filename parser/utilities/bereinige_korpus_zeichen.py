@@ -63,9 +63,20 @@ def bereinige(apply=False):
     umbenannt = 0
     gemergt = 0
     manuelle_pruefung = []
+    gescannt = 0
+    batch_nr = 0
 
     while True:
         cursor, keys = database.r.scan(cursor=cursor, match='word:*', count=1000)
+        batch_nr += 1
+        gescannt += len(keys)
+
+        # Status-Print statt \r-Fortschrittsbalken, damit ein per nohup
+        # umgeleitetes Log per "tail -f" sauber lesbar bleibt (siehe README/
+        # STATUS.md zur Begruendung gegen \r in Log-Dateien).
+        if batch_nr % 50 == 0:
+            print('... {} Keys gescannt (umbenannt={}, gemergt={})'.format(
+                gescannt, umbenannt, gemergt), flush=True)
 
         for key in keys:
             key_str = key.decode('utf-8')
