@@ -409,6 +409,11 @@ def prune(new_words, id, merke_lemma_fn=merke_lemma, export_fn=export.append_row
                     continue
 
                 merke_lemma_fn(wortart, lemma, id)
+                # Nur informativ fuer export_fn (z.B. zur Qualitaetspruefung
+                # in nacherfassung_wp21.py) - export.append_row() im
+                # Live-Betrieb liest diese Felder nicht, ignoriert sie also.
+                entry['wortart'] = wortart
+                entry['lemma'] = lemma
             # ergebnis is None (Wort fehlte in der LLM-Antwort) -> konservativ
             # exportieren statt stillschweigend zu verwerfen.
 

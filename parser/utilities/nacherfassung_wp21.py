@@ -32,7 +32,7 @@ import text_parse
 
 ARCHIVE_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', 'archive')
 TEST_CSV = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', 'output', 'neue_woerter_wp21_test.csv')
-TEST_CSV_FELDER = ['protokoll_id', 'wort', 'satz', 'sprecher_typ', 'sprecher', 'fraktion', 'ist_zwischenfrage']
+TEST_CSV_FELDER = ['protokoll_id', 'wort', 'wortart', 'lemma', 'satz', 'sprecher_typ', 'sprecher', 'fraktion', 'ist_zwischenfrage']
 
 
 def war_zuerst_hier(word, id):
@@ -61,6 +61,11 @@ def _test_export(entry, id):
         writer.writerow({
             'protokoll_id': str(id),
             'wort': entry['word'],
+            # Nur gefuellt, wenn die LLM-Klassifikation fuer dieses Wort
+            # erfolgreich war (siehe prune() in text_parse.py) - sonst leer,
+            # NICHT das Fehlen einer Klassifikation vortaeuschen.
+            'wortart': entry.get('wortart', ''),
+            'lemma': entry.get('lemma', ''),
             'satz': entry.get('satz'),
             'sprecher_typ': entry.get('sprecher_typ'),
             'sprecher': entry.get('sprecher'),
