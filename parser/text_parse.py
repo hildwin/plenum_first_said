@@ -194,9 +194,21 @@ def de_enumaration(words):
     return clean_words
 
 
-def wordsfilter(words, id):  
+# pruefe_neuheit ist austauschbar (Default: check_word, mutierend - schreibt
+# den Korpus fort) - z.B. utilities/nacherfassung_wp21.py nutzt stattdessen
+# eine rein lesende Pruefung, da der Korpus fuer bereits verarbeitete
+# Wahlperioden laengst vollstaendig ist und ein erneuter check_newness()-
+# Aufruf dort immer "schon bekannt" melden wuerde.
+def wordsfilter(words, id, pruefe_neuheit=None):
     new_words = []
-    
+
+    # check_word ist erst weiter unten in dieser Datei definiert - als
+    # Default-Argument direkt eingetragen wuerde es beim Modul-Import
+    # (Zeitpunkt der def-Auswertung) noch nicht existieren, daher Lookup
+    # zur Laufzeit statt als Default-Parameterwert.
+    if pruefe_neuheit is None:
+        pruefe_neuheit = check_word
+
     # Wort hat nur Buchstaben
     regchar = re.compile(r'([A-Z])|([a-z])\w+')
 
@@ -205,9 +217,9 @@ def wordsfilter(words, id):
 
             # Enfernen von sonst nicht filterbaren Aufzählungen
             if word.endswith('-,') or word.endswith('-') or word.endswith('–') or word.startswith('-') or word.startswith('–'):
-                continue     
+                continue
 
-            if check_word(word, id):
+            if pruefe_neuheit(word, id):
                 new_words.append(word)
         
     return new_words
@@ -330,8 +342,13 @@ FUELLWOERTER = frozenset({
 })
 
 
-# Aussortieren von Wörtern und Export der Überlebenden (CSV + DB)
-def prune(new_words, id):
+# Aussortieren von Wörtern und Export der Überlebenden (CSV + DB).
+# merke_lemma_fn/export_fn sind fuer den Live-Betrieb austauschbar, damit
+# z.B. utilities/nacherfassung_wp21.py (rueckwirkender Testlauf) dieselbe
+# Filter-/Klassifikationslogik nutzen kann, ohne die produktiven lemma:*-Keys
+# oder neue_woerter.csv/.db anzufassen - per Default exakt das bisherige
+# Verhalten.
+def prune(new_words, id, merke_lemma_fn=merke_lemma, export_fn=export.append_row):
 
     pruned_entries = find_matches(new_words)
     kandidaten = []
@@ -384,11 +401,11 @@ def prune(new_words, id):
                 if ist_lemma_bekannt(wortart, lemma):
                     continue
 
-                merke_lemma(wortart, lemma, id)
+                merke_lemma_fn(wortart, lemma, id)
             # ergebnis is None (Wort fehlte in der LLM-Antwort) -> konservativ
             # exportieren statt stillschweigend zu verwerfen.
 
-        export.append_row(entry, id)
+        export_fn(entry, id)
 
 
 def _klassifiziere_kandidaten(kandidaten):
