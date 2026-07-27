@@ -33,7 +33,14 @@ ARCHIVE_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', 'a
 # betrifft nur die Sitzungen mit dem neuen, reich strukturierten XML-Format
 # (erkennbar an fundstelle.xml_url); aeltere Sitzungen ohne xml_url werden
 # uebersprungen und bleiben Sache des manuellen Downloads.
-WAHLPERIODEN = [19, 20, 21]
+#
+# Nur die aktuell laufende(n) Wahlperiode(n) eintragen - eine abgeschlossene
+# Wahlperiode bekommt nie wieder neue Sitzungen, sie hier zu belassen wuerde
+# bei jedem Lauf nur unnoetig die komplette (bereits vollstaendig
+# heruntergeladene) Dokumentenliste erneut paginieren. WP19/WP20 waren zum
+# 2026-07 bereits vollstaendig heruntergeladen und wurden deshalb entfernt -
+# falls jemals wieder rueckwirkend geprueft werden soll, hier ergaenzen.
+WAHLPERIODEN = [21]
 
 
 # Iteriert per Cursor-Pagination ueber alle Dokumente einer Wahlperiode
