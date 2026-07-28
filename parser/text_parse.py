@@ -451,6 +451,7 @@ def prune(new_words, id, merke_lemma_fn=merke_lemma, export_fn=export.append_row
             if ergebnis is not None:
                 wortart = ergebnis['wortart']
                 lemma = ergebnis['lemma']
+                lemma_korrekt = ergebnis['lemma_korrekt']
                 # ist_wort_bekannt() faengt den Fall ab, dass das Lemma selbst
                 # (unabhaengig von der lemma:*-Prospektiv-Tracking) schon
                 # lange als eigener word:*-Eintrag existiert (z.B.
@@ -469,6 +470,7 @@ def prune(new_words, id, merke_lemma_fn=merke_lemma, export_fn=export.append_row
                 # Live-Betrieb liest diese Felder nicht, ignoriert sie also.
                 entry['wortart'] = wortart
                 entry['lemma'] = lemma
+                entry['lemma_korrekt'] = lemma_korrekt
             # ergebnis is None (Wort fehlte in der LLM-Antwort) -> konservativ
             # exportieren statt stillschweigend zu verwerfen.
 

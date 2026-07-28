@@ -20,6 +20,7 @@ class WortKlassifikation(BaseModel):
     index: int
     wortart: Wortart
     lemma: str
+    lemma_korrekt: bool
 
 
 class KlassifikationsAntwort(BaseModel):
@@ -28,15 +29,14 @@ class KlassifikationsAntwort(BaseModel):
 
 SYSTEM_PROMPT = (
     "Du bist ein Linguistik-Assistent fuer deutsche Bundestagsprotokolle. Du bekommst "
-    "eine Liste deutscher Woerter, jedes mit dem Satz, in dem es vorkam, sowie Sprecher/"
-    "Fraktion. Fuer jedes Wort bestimmst du:\n"
+    "eine Liste deutscher Woerter, jedes mit dem Satz, in dem es vorkam. Fuer jedes Wort "
+    "bestimmst du:\n"
     "1. wortart: 'Nomen', 'Verb', 'Adjektiv', 'Adverb' oder 'Sonstiges' - die tatsaechliche "
     "Wortart im Satzkontext. Gross-/Kleinschreibung im Originaltext ist NICHT zuverlaessig "
     "(Behoerdentexte, Flüchtigkeitsfehler, Satzanfang) - entscheide anhand der Funktion im Satz, "
     "nicht anhand der Schreibweise.\n"
-    "2. lemma: Die Grundform (Nominativ Singular bei Nomen, Infinitiv bei Verben, unflektierte Positivform "
-    "bei Adjektiven/Adverbien). Das Lemma MUSS morphologisch aus dem Wort selbst ableitbar "
-    "sein (gleicher Wortstamm) - erfinde niemals ein unabhaengiges, nur thematisch "
+    "2. lemma: Die morphologische Grundform, gleicher Wortstamm (Nomen -> Nominativ Singular; Verben -> Infinitiv;  "
+    "Adjektive -> Positiv/Unflektiert). Erfinde niemals ein unabhaengiges, nur thematisch "
     "verwandtes Wort als Lemma, auch wenn es im Satz naheliegend erscheint (Beispiel fuer "
     "einen Fehler: 'Neue' in 'Neue Autobahnen wollt ihr bauen!' ist ein flektiertes "
     "Adjektiv zu 'Autobahnen' - richtig waere wortart='Adjektiv', lemma='neu'; 'Auto' waere "
@@ -48,16 +48,15 @@ SYSTEM_PROMPT = (
     "sehr aehnlich ist. Beispiel fuer RICHTIGE Gleichsetzung: 'Frachtausgleichs' (Genitiv) "
     "und 'Frachtausgleich' (Grundform) haben beide das Lemma 'Frachtausgleich'.\n\n"
     "WICHTIG fuer lemma: IMMER genau EIN einzelnes Wort, NIEMALS mehrere durch Leerzeichen "
-    "getrennte Woerter oder eine ganze Wortgruppe/Phrase aus dem Satz - auch wenn das Wort "
-    "Teil einer laengeren Wortgruppe im Satzkontext ist. Beispiel fuer einen Fehler: 'Thesaurierte' "
-    "in 'Thesaurierte Gewinne, also Gewinne, die im Unternehmen bleiben, ...' ist ein flektiertes "
+    "getrennte Woerter oder eine ganze Wortgruppe/Phrase aus dem Satz. "
+    "Beispiel fuer einen Fehler: 'Thesaurierte' in 'Thesaurierte Gewinne' ist ein flektiertes "
     "Adjektiv/Partizip zu 'Gewinne' (wie 'gewaehlte Vertreter') - richtig waere wortart='Adjektiv', "
-    "lemma='thesauriert'; wortart='Nomen', lemma='Thesaurierter Gewinn' waere falsch (falsche "
-    "Wortart UND mehrwortiges Lemma statt der Grundform des isolierten Wortes). Weiteres Beispiel: "
-    "'Guest' (aus 'Guest Houses') hat lemma='Guest', NICHT lemma='Guest House'.\n\n"
+    "lemma='thesauriert'; wortart='Nomen', lemma='Thesaurierter Gewinn' waere falsch. \n\n"
     "WICHTIG fuer lemma: Pruefe vor der Antwort die Rechtschreibung deines Lemmas noch "
     "einmal genau (korrektes Deutsch, kein fehlender/vertauschter Buchstabe). Beispiel fuer "
     "einen Fehler: lemma='Klappstul' statt korrekt 'Klappstuhl'.\n\n"
+    "3. lemma_korrekt: Ein Boolean (true/false), der angibt, ob das extrahierte Lemma "
+    "orthografisch korrekt im Deutschen existiert.\n\n"
     "Antworte fuer JEDES Wort aus der Eingabeliste per index, auch bei Unsicherheit "
     "(dann nach bestem Wissen). Erfinde keine zusaetzlichen Woerter/Indizes."
 )
@@ -73,8 +72,8 @@ def _get_client():
     return _client
 
 
-# entries: Liste von Dicts mit 'word', 'satz', 'sprecher', 'fraktion'.
-# Rueckgabe: Dict {index: {'wortart': str, 'lemma': str}} fuer jeden erfolgreich
+# entries: Liste von Dicts mit 'word', 'satz'.
+# Rueckgabe: Dict {index: {'wortart': str, 'lemma': str, 'lemma_korrekt': bool}} fuer jeden erfolgreich
 # klassifizierten Index. Fehlende Indizes = "nicht klassifiziert", vom Aufrufer
 # konservativ (exportieren, ohne Lemma-Abgleich) zu behandeln. Wirft bei jedem
 # nicht verwertbaren Ergebnis (API-Fehler, Refusal, kaputtes JSON) eine Exception
@@ -87,8 +86,6 @@ def classify_words(entries):
             'index': i,
             'word': entry['word'],
             'satz': entry.get('satz') or '',
-            'sprecher': entry.get('sprecher') or '',
-            'fraktion': entry.get('fraktion') or '',
         }
         for i, entry in enumerate(entries)
     ]
@@ -130,6 +127,7 @@ def classify_words(entries):
         result[item.index] = {
             'wortart': item.wortart,
             'lemma': lemma,
+            'lemma_korrekt': item.lemma_korrekt,
         }
 
     missing = len(entries) - len(result)

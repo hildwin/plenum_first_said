@@ -32,7 +32,7 @@ from database import merke_lemma
 
 ARCHIVE_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', 'archive')
 TEST_CSV = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', 'output', 'neue_woerter_wp21_test.csv')
-TEST_CSV_FELDER = ['protokoll_id', 'wort', 'wortart', 'lemma', 'satz', 'sprecher_typ', 'sprecher', 'fraktion', 'ist_zwischenfrage']
+TEST_CSV_FELDER = ['protokoll_id', 'wort', 'wortart', 'lemma', 'lemma_korrekt', 'satz', 'sprecher_typ', 'sprecher', 'fraktion', 'ist_zwischenfrage']
 
 
 def war_zuerst_hier(word, id):
@@ -66,6 +66,7 @@ def _test_export(entry, id):
             # NICHT das Fehlen einer Klassifikation vortaeuschen.
             'wortart': entry.get('wortart', ''),
             'lemma': entry.get('lemma', ''),
+            'lemma_korrekt': entry.get('lemma_korrekt', ''),
             'satz': entry.get('satz'),
             'sprecher_typ': entry.get('sprecher_typ'),
             'sprecher': entry.get('sprecher'),
