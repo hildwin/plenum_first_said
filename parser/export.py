@@ -115,15 +115,37 @@ def _migriere_csv_falls_noetig():
             anomalien)
 
 
+# Wandelt ein ISO-Datum (JJJJ-MM-TT) in eine Excel-Formel um, die beim
+# Oeffnen der CSV zuverlaessig als echtes Datum ausgewertet wird - reiner
+# ISO-Text wird von Excel je nach Locale/Version NICHT zuverlaessig als Datum
+# erkannt (beobachtet: "2025-05-22" wurde beim Import zu "22052025"
+# verstuemmelt). Nur fuer die CSV (Arbeitskopie fuer die manuelle Durchsicht
+# in Excel) - die SQLite-DB behaelt bewusst das reine ISO-Datum, damit
+# Datums-Abfragen/-Sortierung dort weiterhin normal funktionieren. Semikolon
+# als Argumenttrenner (deutsches Excel-Gebietsschema).
+def _excel_datum(iso_datum):
+    if not iso_datum:
+        return iso_datum
+
+    try:
+        jahr, monat, tag = iso_datum.split('-')
+        return '=DATE({};{};{})'.format(int(jahr), int(monat), int(tag))
+    except ValueError:
+        return iso_datum
+
+
 def _append_csv(zeile):
     _migriere_csv_falls_noetig()
     ist_neu = not os.path.exists(CSV_PATH)
+
+    csv_zeile = dict(zeile)
+    csv_zeile['datum'] = _excel_datum(zeile.get('datum'))
 
     with open(CSV_PATH, 'a', newline='', encoding='utf-8') as f:
         writer = csv.DictWriter(f, fieldnames=CSV_FELDER)
         if ist_neu:
             writer.writeheader()
-        writer.writerow(zeile)
+        writer.writerow(csv_zeile)
 
 
 def _append_db(zeile):

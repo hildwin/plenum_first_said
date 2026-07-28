@@ -2,6 +2,7 @@ import logging
 from dotenv import load_dotenv
 import os
 import json
+import xml.etree.ElementTree as ET
 from database import r
 import datetime
 from api_functions import get_url_content
@@ -47,6 +48,27 @@ def add_protokoll(response):
                         else:
                             pipe.hset(redis_id, parameter, document_data[parameter])
 
+                # Fallback, wenn die DIP-API-JSON-Antwort selbst kein 'datum'
+                # liefert (beobachtet bei sehr aktuellen/laufenden WP21-
+                # Sitzungen: Text bereits verfuegbar, Metadaten-Feld 'datum'
+                # noch nicht nachgezogen). Das reichhaltige XML-Dokument
+                # (fundstelle.xml_url) hat das Sitzungsdatum zuverlaessig
+                # schon als Root-Attribut 'sitzung-datum', bereits im Format
+                # TT.MM.JJJJ (keine Konvertierung noetig, anders als beim
+                # ISO-Datum oben aus der JSON-Antwort). Dupliziert bewusst nur
+                # den Attribut-Zugriff statt xml_processing.
+                # get_protokoll_metadata() zu importieren - xml_processing.py
+                # importiert bereits von dip_api.py, ein Ruecksimport wuerde
+                # einen Zirkelbezug erzeugen.
+                if 'datum' not in document_data:
+                    datum = _datum_aus_xml(document_data.get('fundstelle', {}).get('xml_url'))
+                    if datum:
+                        pipe.hset(redis_id, 'datum', datum)
+                    else:
+                        logging.warning(
+                            'Kein Datum in JSON-Antwort UND XML-Fallback fuer Protokoll %s gefunden.',
+                            document_data['id'])
+
                 try:
                     pipe.execute()
                     return True
@@ -62,6 +84,26 @@ def add_protokoll(response):
     else:
         logging.info('Dokument mit ID ' + document_data['id'] + ' ist kein Bundestagsprotokoll')
         return False
+
+
+# Laedt xml_url herunter und liefert das Sitzungsdatum aus dem Root-Attribut
+# 'sitzung-datum' (neues XML-Format, bereits TT.MM.JJJJ). None bei fehlender
+# URL, Netzwerkfehler, kaputtem XML oder fehlendem Attribut - der Aufrufer
+# behandelt das als "kein Fallback moeglich", nicht als harten Fehler.
+def _datum_aus_xml(xml_url):
+    if not xml_url:
+        return None
+
+    response = get_url_content(xml_url)
+    if not response or response.status_code != 200:
+        return None
+
+    try:
+        root = ET.fromstring(response.content)
+    except ET.ParseError:
+        return None
+
+    return root.attrib.get('sitzung-datum') or None
 
 
 def find_new_doc(id):
