@@ -150,31 +150,42 @@ def _classify_batch(entries):
         word = entries[item.index]['word']
         lemma = item.lemma.strip() or word
 
+        # WICHTIG: .split() statt count(' ')/' ' in lemma - erkennt JEDE Art
+        # von Whitespace (auch z.B. ein geschuetztes Leerzeichen \xa0), nicht
+        # nur das normale ASCII-Leerzeichen. Beobachtet: lemma="Nöl er" fuer
+        # Wort "Nöler" wurde von der alten ' '-basierten Pruefung NICHT
+        # erkannt (offenbar kein normales Leerzeichen, obwohl im Terminal
+        # identisch aussehend) und ist unrepariert UND ungefiltert
+        # durchgerutscht.
+        lemma_teile = lemma.split()
+
         # Verteidigung gegen Prompt-Nichteinhaltung: ein Kompositum, das vom
-        # LLM durch genau EIN Leerzeichen zerrissen wurde (beobachtet:
-        # "Übergangsberei ch"/"Gerichtskosten vorschuss" statt korrekt
-        # "Übergangsbereich"/"Gerichtskostenvorschuss"), laesst sich sicher
-        # reparieren, wenn die zusammengefuegte Laenge nah an der Laenge des
-        # Original-Worts liegt. Bei einer echten Mehrwort-Phrase (z.B. "Be'er
-        # Scheva" fuer Wort "Scheva", "Thesaurierter Gewinn" fuer Wort
-        # "Thesaurierte") liegt die zusammengefuegte Laenge dagegen weit von
-        # der Wortlaenge entfernt - dort greift weiterhin die Ablehnung unten.
-        if lemma.count(' ') == 1:
-            repariert = lemma.replace(' ', '')
+        # LLM durch genau EIN Whitespace-Zeichen zerrissen wurde (beobachtet:
+        # "Übergangsberei ch"/"Gerichtskosten vorschuss"/"Nöl er" statt korrekt
+        # "Übergangsbereich"/"Gerichtskostenvorschuss"/"Nöler"), laesst sich
+        # sicher reparieren, wenn die zusammengefuegte Laenge nah an der
+        # Laenge des Original-Worts liegt. Bei einer echten Mehrwort-Phrase
+        # (z.B. "Be'er Scheva" fuer Wort "Scheva", "Thesaurierter Gewinn" fuer
+        # Wort "Thesaurierte") liegt die zusammengefuegte Laenge dagegen weit
+        # von der Wortlaenge entfernt - dort greift weiterhin die Ablehnung
+        # unten.
+        if len(lemma_teile) == 2:
+            repariert = ''.join(lemma_teile)
             if abs(len(repariert) - len(word)) <= 3:
                 logging.info(
-                    'LLM-Klassifikation: Kompositum-Lemma "%s" fuer Wort "%s" repariert zu "%s" (Index %d).',
+                    'LLM-Klassifikation: Kompositum-Lemma %r fuer Wort "%s" repariert zu "%s" (Index %d).',
                     lemma, word, repariert, item.index)
                 lemma = repariert
+                lemma_teile = [lemma]
 
         # Verteidigung gegen Prompt-Nichteinhaltung (beobachtet: "Thesaurierter
         # Gewinn"/"Guest House" statt Einzelwort-Lemma "thesauriert"/"Guest") -
         # ein mehrwortiges Lemma darf nicht in lemma:* landen, unabhaengig
         # davon, ob der Prompt das verhindern soll. Wird wie ein fehlendes
         # Antwort-Item behandelt (konservativ exportieren ohne Lemma-Abgleich).
-        if ' ' in lemma:
+        if len(lemma_teile) > 1:
             logging.warning(
-                'LLM-Klassifikation: mehrwortiges Lemma "%s" fuer Wort "%s" verworfen (Index %d).',
+                'LLM-Klassifikation: mehrwortiges Lemma %r fuer Wort "%s" verworfen (Index %d).',
                 lemma, word, item.index)
             continue
 
