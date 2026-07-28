@@ -62,7 +62,61 @@ def _init_db(conn):
         conn.execute('ALTER TABLE neue_woerter ADD COLUMN lemma_korrekt INTEGER')
 
 
+# Bestandsschutz fuer eine bereits existierende neue_woerter.csv (z.B. auf dem
+# Produktionsserver), deren Header noch nicht CSV_FELDER entspricht (z.B. vor
+# Einfuehrung von lemma_korrekt angelegt) - ohne diese Migration wuerden neu
+# angehaengte Zeilen mehr/andere Spalten haben als der bestehende Header, was
+# beim Import (Excel/pandas) zu Spaltenverschiebungen fuehrt.
+#
+# Behandelt auch den Fall, dass bereits VOR dieser Migration einzelne Zeilen
+# mit dem neuen (laengeren) Spaltenlayout unter dem alten Header angehaengt
+# wurden (Code-Update vor Header-Update deployed): Zeilen werden anhand ihrer
+# tatsaechlichen Feldanzahl zugeordnet (alte Laenge -> alter Header, neue
+# Laenge -> CSV_FELDER), nicht pauschal ueber einen einzigen Header geparst -
+# sonst wuerden genau diese Zeilen beim Migrieren falsch verschoben statt
+# korrigiert.
+def _migriere_csv_falls_noetig():
+    if not os.path.exists(CSV_PATH):
+        return
+
+    with open(CSV_PATH, newline='', encoding='utf-8') as f:
+        rohzeilen = list(csv.reader(f))
+
+    if not rohzeilen:
+        return
+
+    alter_header = rohzeilen[0]
+    if alter_header == CSV_FELDER:
+        return
+
+    zeilen = []
+    anomalien = 0
+    for roh in rohzeilen[1:]:
+        if len(roh) == len(alter_header):
+            zeilen.append(dict(zip(alter_header, roh)))
+        elif len(roh) == len(CSV_FELDER):
+            zeilen.append(dict(zip(CSV_FELDER, roh)))
+        else:
+            anomalien += 1
+            zeilen.append(dict(zip(alter_header, roh)))
+
+    with open(CSV_PATH, 'w', newline='', encoding='utf-8') as f:
+        writer = csv.DictWriter(f, fieldnames=CSV_FELDER)
+        writer.writeheader()
+        writer.writerows(zeilen)
+
+    logging.info(
+        'neue_woerter.csv-Header migriert (%s -> %s), %d Zeile(n) neu geschrieben.',
+        alter_header, CSV_FELDER, len(zeilen))
+    if anomalien:
+        logging.warning(
+            'neue_woerter.csv-Migration: %d Zeile(n) mit unerwarteter Feldanzahl '
+            '(weder altes noch neues Layout) - best effort mit altem Header geparst.',
+            anomalien)
+
+
 def _append_csv(zeile):
+    _migriere_csv_falls_noetig()
     ist_neu = not os.path.exists(CSV_PATH)
 
     with open(CSV_PATH, 'a', newline='', encoding='utf-8') as f:
