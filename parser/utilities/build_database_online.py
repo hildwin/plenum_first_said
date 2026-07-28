@@ -1,7 +1,6 @@
 # sourcery skip: merge-duplicate-blocks
 import os
 import string
-# from progressbar import printProgressBar
 import xml_processing
 from text_parse import process_woerter, prune
 from dotenv import load_dotenv
@@ -50,9 +49,6 @@ for id in range(1442 , length):
     else:
         logging.info("no status 200 - skip id: " + str(id))
         continue
-
-
-    # printProgressBar(id + 1, length, prefix = 'Progress:', suffix = 'Complete', length = 50)
 
 logging.info("Fertig")
 logging.info(str(wordnum) + " neue Wörter insgesamt.")
