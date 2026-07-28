@@ -494,7 +494,16 @@ def wende_klassifikation_an(entry, id, ergebnis, merke_lemma_fn):
     # wird. Bei Treffer NICHT merke_lemma_fn() aufrufen (waere
     # eine falsche "zuerst gesehen"-ID fuer ein Wort, das laengst
     # bekannt ist).
-    if ist_lemma_bekannt(wortart, lemma) or ist_wort_bekannt(lemma):
+    #
+    # WICHTIG: nur pruefen, wenn lemma vom rohen Wort abweicht. Ist
+    # lemma == entry['word'] (keine Flexion noetig, z.B. ein Nomen, das schon
+    # in der Grundform im Text stand), traegt bereits check_newness() VOR
+    # prune() den word:*-Eintrag fuer GENAU dieses Wort ein (add_to_database()
+    # laeuft dort immer, unabhaengig vom Rueckgabewert) - ist_wort_bekannt(lemma)
+    # wuerde dann den eigenen, Sekunden zuvor angelegten Eintrag treffen statt
+    # einen echten AELTEREN Fund. Ohne diese Ausnahme wuerde jedes Wort ohne
+    # Flexionsbedarf faelschlich als "schon bekannt" uebersprungen.
+    if ist_lemma_bekannt(wortart, lemma) or (lemma != entry['word'] and ist_wort_bekannt(lemma)):
         return
 
     merke_lemma_fn(wortart, lemma, id)
