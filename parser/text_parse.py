@@ -6,6 +6,7 @@ import xml_processing
 import difflib
 import export
 import llm_classify
+import rechtschreibung
 from database import check_newness, ist_bekannter_name, ist_lemma_bekannt, merke_lemma, ist_wort_bekannt
 
 # Beginn des Dokumentes finden mit Rechtschreibfehlern. 
@@ -452,6 +453,23 @@ def prune(new_words, id, merke_lemma_fn=merke_lemma, export_fn=export.append_row
                 wortart = ergebnis['wortart']
                 lemma = ergebnis['lemma']
                 lemma_korrekt = ergebnis['lemma_korrekt']
+
+                # Zweite Meinung per LanguageTool, wenn schon das LLM selbst
+                # unsicher war (lemma_korrekt=false) - loest der externe
+                # Dienst es mit hoher Aehnlichkeit sicher auf, wird die
+                # Korrektur uebernommen (inkl. lemma_korrekt=True), BEVOR der
+                # Dedup-Check unten laeuft. Bleibt es unsicher (oder ist der
+                # Dienst nicht erreichbar), wird der Fall nur protokolliert -
+                # der bestehende Ablauf (Dedup + Export mit dem urspruenglichen
+                # Lemma) aendert sich dadurch nicht.
+                if not lemma_korrekt:
+                    pruefung = rechtschreibung.validate_and_fix_lemma(lemma)
+                    if pruefung['valid'] and pruefung['corrected']:
+                        lemma = pruefung['corrected']
+                        lemma_korrekt = True
+                    else:
+                        rechtschreibung.log_review(id, entry['word'], lemma, pruefung, entry.get('satz'))
+
                 # ist_wort_bekannt() faengt den Fall ab, dass das Lemma selbst
                 # (unabhaengig von der lemma:*-Prospektiv-Tracking) schon
                 # lange als eigener word:*-Eintrag existiert (z.B.
