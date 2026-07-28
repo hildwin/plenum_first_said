@@ -10,7 +10,9 @@ import xml_processing
 load_dotenv()
 
 def get_current_id():
-    return int(r.get('meta:id'))
+    # redis-stubs modellieren get() als ggf. Awaitable (Async-Client) - hier kommt
+    # aber immer der Sync-Client zum Einsatz, r.get() liefert also bytes|None.
+    return int(r.get('meta:id'))  # type: ignore[arg-type]
 
 def increase_current_id(new_id):
     r.set('meta:id', int(new_id) + 1)

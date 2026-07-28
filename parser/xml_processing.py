@@ -60,6 +60,8 @@ def get(id):
         response = get_url_content(xml_url)
     else:
         # Fallback: kein xml_url bekannt (z.B. aeltere Protokolle) - Flat-Text ueber die API
+        if not api_key:
+            raise RuntimeError('BUNDESTAG_API_KEY ist nicht gesetzt (.env pruefen)')
         url = 'https://search.dip.bundestag.de/api/v1/plenarprotokoll-text/' + str(id) + '?apikey=' + api_key + '&format=xml'
         response = get_url_content(url)
 

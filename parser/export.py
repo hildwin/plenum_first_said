@@ -22,7 +22,7 @@ CSV_FELDER = ['protokoll_id', 'datum', 'wort', 'wortart', 'lemma', 'lemma_korrek
 # Redis bleibt bewusst unveraendert (andere Konsumenten wie wort_herkunft.py
 # erwarten weiterhin TT.MM.JJJJ).
 def _protokoll_datum(id):
-    keys = r.hgetall('protokoll:' + str(id))
+    keys = r.hgetall('protokoll:' + str(id))  # type: ignore[assignment]
     datum = keys.get(b'datum')
     if not datum:
         return None
