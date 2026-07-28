@@ -124,7 +124,25 @@ def classify_words(entries):
             logging.debug('LLM-Klassifikation: ungueltiger/doppelter Index %d ignoriert.', item.index)
             continue
 
-        lemma = item.lemma.strip() or entries[item.index]['word']
+        word = entries[item.index]['word']
+        lemma = item.lemma.strip() or word
+
+        # Verteidigung gegen Prompt-Nichteinhaltung: ein Kompositum, das vom
+        # LLM durch genau EIN Leerzeichen zerrissen wurde (beobachtet:
+        # "Übergangsberei ch"/"Gerichtskosten vorschuss" statt korrekt
+        # "Übergangsbereich"/"Gerichtskostenvorschuss"), laesst sich sicher
+        # reparieren, wenn die zusammengefuegte Laenge nah an der Laenge des
+        # Original-Worts liegt. Bei einer echten Mehrwort-Phrase (z.B. "Be'er
+        # Scheva" fuer Wort "Scheva", "Thesaurierter Gewinn" fuer Wort
+        # "Thesaurierte") liegt die zusammengefuegte Laenge dagegen weit von
+        # der Wortlaenge entfernt - dort greift weiterhin die Ablehnung unten.
+        if lemma.count(' ') == 1:
+            repariert = lemma.replace(' ', '')
+            if abs(len(repariert) - len(word)) <= 3:
+                logging.info(
+                    'LLM-Klassifikation: Kompositum-Lemma "%s" fuer Wort "%s" repariert zu "%s" (Index %d).',
+                    lemma, word, repariert, item.index)
+                lemma = repariert
 
         # Verteidigung gegen Prompt-Nichteinhaltung (beobachtet: "Thesaurierter
         # Gewinn"/"Guest House" statt Einzelwort-Lemma "thesauriert"/"Guest") -
@@ -134,7 +152,7 @@ def classify_words(entries):
         if ' ' in lemma:
             logging.warning(
                 'LLM-Klassifikation: mehrwortiges Lemma "%s" fuer Wort "%s" verworfen (Index %d).',
-                lemma, entries[item.index]['word'], item.index)
+                lemma, word, item.index)
             continue
 
         result[item.index] = {
