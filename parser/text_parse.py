@@ -448,51 +448,62 @@ def prune(new_words, id, merke_lemma_fn=merke_lemma, export_fn=export.append_row
 
     for i, entry in enumerate(kandidaten):
         if klassifikation is not None:
-            ergebnis = klassifikation.get(i)
-            if ergebnis is not None:
-                wortart = ergebnis['wortart']
-                lemma = ergebnis['lemma']
-                lemma_korrekt = ergebnis['lemma_korrekt']
-
-                # Zweite Meinung per LanguageTool, wenn schon das LLM selbst
-                # unsicher war (lemma_korrekt=false) - loest der externe
-                # Dienst es mit hoher Aehnlichkeit sicher auf, wird die
-                # Korrektur uebernommen (inkl. lemma_korrekt=True), BEVOR der
-                # Dedup-Check unten laeuft. Bleibt es unsicher (oder ist der
-                # Dienst nicht erreichbar), wird der Fall nur protokolliert -
-                # der bestehende Ablauf (Dedup + Export mit dem urspruenglichen
-                # Lemma) aendert sich dadurch nicht.
-                if not lemma_korrekt:
-                    pruefung = rechtschreibung.validate_and_fix_lemma(lemma)
-                    if pruefung['valid'] and pruefung['corrected']:
-                        lemma = pruefung['corrected']
-                        lemma_korrekt = True
-                    else:
-                        rechtschreibung.log_review(id, entry['word'], lemma, pruefung, entry.get('satz'))
-
-                # ist_wort_bekannt() faengt den Fall ab, dass das Lemma selbst
-                # (unabhaengig von der lemma:*-Prospektiv-Tracking) schon
-                # lange als eigener word:*-Eintrag existiert (z.B.
-                # "einknicken" seit 1990, waehrend "einknickend" gerade erst
-                # zum ersten Mal auftaucht) - lemma:* allein wuerde das nicht
-                # erkennen, da es erst seit Einfuehrung von Option A befuellt
-                # wird. Bei Treffer NICHT merke_lemma_fn() aufrufen (waere
-                # eine falsche "zuerst gesehen"-ID fuer ein Wort, das laengst
-                # bekannt ist).
-                if ist_lemma_bekannt(wortart, lemma) or ist_wort_bekannt(lemma):
-                    continue
-
-                merke_lemma_fn(wortart, lemma, id)
-                # Nur informativ fuer export_fn (z.B. zur Qualitaetspruefung
-                # in nacherfassung_wp21.py) - export.append_row() im
-                # Live-Betrieb liest diese Felder nicht, ignoriert sie also.
-                entry['wortart'] = wortart
-                entry['lemma'] = lemma
-                entry['lemma_korrekt'] = lemma_korrekt
+            wende_klassifikation_an(entry, id, klassifikation.get(i), merke_lemma_fn)
             # ergebnis is None (Wort fehlte in der LLM-Antwort) -> konservativ
             # exportieren statt stillschweigend zu verwerfen.
 
         export_fn(entry, id)
+
+
+# Wendet ein LLM-Klassifikationsergebnis (wortart/lemma/lemma_korrekt) auf
+# einen einzelnen Kandidaten an: LanguageTool-Zweitmeinung bei lemma_korrekt=
+# false, Dedup-Check, bei Neuheit merke_lemma_fn() + Uebernahme in entry.
+# Eigene Funktion (statt Teil von prune()), damit utilities/nachhole_
+# klassifikation.py dieselbe Logik fuer rueckwirkend nachgeholte Klassifi-
+# kationen nutzen kann, ohne sie zu duplizieren.
+def wende_klassifikation_an(entry, id, ergebnis, merke_lemma_fn):
+    if ergebnis is None:
+        return
+
+    wortart = ergebnis['wortart']
+    lemma = ergebnis['lemma']
+    lemma_korrekt = ergebnis['lemma_korrekt']
+
+    # Zweite Meinung per LanguageTool, wenn schon das LLM selbst
+    # unsicher war (lemma_korrekt=false) - loest der externe
+    # Dienst es mit hoher Aehnlichkeit sicher auf, wird die
+    # Korrektur uebernommen (inkl. lemma_korrekt=True), BEVOR der
+    # Dedup-Check unten laeuft. Bleibt es unsicher (oder ist der
+    # Dienst nicht erreichbar), wird der Fall nur protokolliert -
+    # der bestehende Ablauf (Dedup + Export mit dem urspruenglichen
+    # Lemma) aendert sich dadurch nicht.
+    if not lemma_korrekt:
+        pruefung = rechtschreibung.validate_and_fix_lemma(lemma)
+        if pruefung['valid'] and pruefung['corrected']:
+            lemma = pruefung['corrected']
+            lemma_korrekt = True
+        else:
+            rechtschreibung.log_review(id, entry['word'], lemma, pruefung, entry.get('satz'))
+
+    # ist_wort_bekannt() faengt den Fall ab, dass das Lemma selbst
+    # (unabhaengig von der lemma:*-Prospektiv-Tracking) schon
+    # lange als eigener word:*-Eintrag existiert (z.B.
+    # "einknicken" seit 1990, waehrend "einknickend" gerade erst
+    # zum ersten Mal auftaucht) - lemma:* allein wuerde das nicht
+    # erkennen, da es erst seit Einfuehrung von Option A befuellt
+    # wird. Bei Treffer NICHT merke_lemma_fn() aufrufen (waere
+    # eine falsche "zuerst gesehen"-ID fuer ein Wort, das laengst
+    # bekannt ist).
+    if ist_lemma_bekannt(wortart, lemma) or ist_wort_bekannt(lemma):
+        return
+
+    merke_lemma_fn(wortart, lemma, id)
+    # Nur informativ fuer export_fn (z.B. zur Qualitaetspruefung
+    # in nacherfassung_wp21.py) - export.append_row() im
+    # Live-Betrieb liest diese Felder nicht, ignoriert sie also.
+    entry['wortart'] = wortart
+    entry['lemma'] = lemma
+    entry['lemma_korrekt'] = lemma_korrekt
 
 
 def _klassifiziere_kandidaten(kandidaten):

@@ -9,7 +9,15 @@ from typing import List, Literal
 MODEL = 'claude-haiku-4-5'  # guenstig, fuer diese gebundene Klassifikationsaufgabe ausreichend;
                             # bei Qualitaetsproblemen (z.B. Faelle wie Altwohnungsmieten/-mieter)
                             # einzeiliger Wechsel auf 'claude-sonnet-5'
-MAX_TOKENS = 8192
+MAX_TOKENS = 12000
+
+# Obergrenze pro API-Aufruf, unabhaengig davon wie viele neue Woerter an einem
+# Tag insgesamt auftauchen (beobachtet: 254 Kandidaten in einem Aufruf haben
+# MAX_TOKENS gesprengt, Antwort brach mitten im JSON ab -> ValidationError,
+# kompletter Tag ohne Lemma-Abgleich exportiert). Kleinere, mehrere Aufrufe
+# statt eines big-bang-Aufrufs halten das Risiko unabhaengig vom Tagesvolumen
+# konstant klein.
+BATCH_SIZE = 100
 
 _client = None
 
@@ -90,8 +98,23 @@ def _get_client():
 # klassifizierten Index. Fehlende Indizes = "nicht klassifiziert", vom Aufrufer
 # konservativ (exportieren, ohne Lemma-Abgleich) zu behandeln. Wirft bei jedem
 # nicht verwertbaren Ergebnis (API-Fehler, Refusal, kaputtes JSON) eine Exception
-# - der Aufrufer faengt das ab und faellt zurueck auf Export ohne Lemma-Abgleich.
+# - der Aufrufer faengt das ab und faellt zurueck auf Export ohne Lemma-Abgleich
+# (fuer ALLE entries, auch wenn nur einer von mehreren Batches fehlschlaegt -
+# konsistent mit dem bisherigen alles-oder-nichts-Verhalten pro Tag).
 def classify_words(entries):
+    result = {}
+    for start in range(0, len(entries), BATCH_SIZE):
+        chunk = entries[start:start + BATCH_SIZE]
+        for lokaler_index, wert in _classify_batch(chunk).items():
+            result[start + lokaler_index] = wert
+    return result
+
+
+# Klassifiziert einen einzelnen Batch (<= BATCH_SIZE Eintraege) per API-Aufruf.
+# Rueckgabe-Keys sind LOKALE Indizes innerhalb von entries (0..len(entries)-1),
+# nicht die globalen Indizes des Gesamt-Aufrufs - das Zusammensetzen macht
+# classify_words().
+def _classify_batch(entries):
     client = _get_client()
 
     payload_words = [
