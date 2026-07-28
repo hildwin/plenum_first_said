@@ -64,12 +64,6 @@ def _redis_client(db):
 # Tatsächliche Datenbank für Wörter
 r = _redis_client(0)
 
-# Datenbank für zu postende Wörter
-postRedis = _redis_client(1)
-
-# Datenbank mit geposteten tweets
-pastRedis = _redis_client(2)
-
 # Wort abgleichen und zur Datenbank hinzufügen
 def similiar_word(word):
 
@@ -180,24 +174,6 @@ def check_age(word,id):
             logging.exception(e)
             raise
 
-
-# Fügt ein Wort zur Posting-Datenbank hinzu
-def add_to_queue(word, id):
-
-    # Fix für Strichfehler
-    if word[0].islower():
-        return False
-
-    postRedis.hset(word, 'word', word)
-    postRedis.hset(word, 'id', id)
-    
-    return True
-
-def delete_from_queue(word):
-    if postRedis.delete(word):
-        return True
-    else:
-        return False
 
 
 # Redis-Set mit Vor-/Nachnamen aller Abgeordneten (aus den MdB-Stammdaten
