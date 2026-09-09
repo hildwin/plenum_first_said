@@ -25,6 +25,7 @@ parser/archive/*
 .env
 venv/*
 parser/plenarlog.log
+parser/cron_plenar.log
 *.xml
 parser/post.log
 parser/output/*

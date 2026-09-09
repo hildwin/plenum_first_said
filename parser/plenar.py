@@ -43,7 +43,7 @@ def main():
             logging.info("Es wurden " + str(len(new_words)) + " neue Wörter hinzugefügt.")
 
         else:
-            logging.debug('Fehler im XML File.')
+            logging.warning('XML fuer Dokument-ID ' + str(new_id) + ' konnte nicht geholt/geparst werden.')
 
     else:
         logging.info('Keine neue Sitzung gefunden.')
