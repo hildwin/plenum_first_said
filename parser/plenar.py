@@ -30,7 +30,7 @@ def main():
         
         xml_file = xml_processing.get(new_id)
 
-        if xml_file:
+        if xml_file is not None:
             logging.info('Sitzung mit der ID ' + str(new_id) +  ' gefunden')
             new_words = process_woerter(xml_file, new_id)
             if len(new_words) == 0:

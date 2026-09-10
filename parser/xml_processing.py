@@ -69,7 +69,7 @@ def get(id):
         filename = save(id, response)
         return parse(filename)
     else:
-        return False
+        return None
 
 
 #Parse XML
