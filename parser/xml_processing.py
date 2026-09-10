@@ -49,7 +49,38 @@ def _get_metadata(id):
     return None
 
 
-# XML Dokument bekommen hinter der ID
+# Leitet aus wahlperiode + dokumentnummer der JSON-Metadaten den WP+
+# Sitzungsnummer-Verbund-Identifikator ab (z.B. "21090" fuer WP21, Sitzung
+# 90) - dieselbe Konvention wie Archiv-Dateinamen und der ueber
+# build_database_local.py aufgebaute Korpus (word:*/protokoll:*) nutzen.
+# Bewusst dupliziert statt aus download_new_format_xml.py importiert: dieses
+# Modul wirft beim Import einen RuntimeError, wenn BUNDESTAG_API_KEY fehlt
+# (Live-Betrieb hat den Key immer gesetzt, aber der Import wuerde rein lokale
+# Offline-Nutzung dieses Moduls unnoetig blockieren - derselbe Grund wie beim
+# API-Key-Lazy-Check weiter oben).
+def _komponierte_id(metadata):
+    if not metadata:
+        return None
+
+    wahlperiode = metadata.get('wahlperiode')
+    dokumentnummer = metadata.get('dokumentnummer', '')
+    sitzungsnr = dokumentnummer.split('/')[-1] if '/' in dokumentnummer else dokumentnummer
+
+    try:
+        return '{:02d}{:03d}'.format(int(wahlperiode), int(sitzungsnr))
+    except (TypeError, ValueError):
+        return None
+
+
+# XML Dokument bekommen hinter der ID. id ist hier die DIP-API-interne,
+# fortlaufende Dokument-ID (z.B. "5808") - NICHT die WP+Sitzungsnummer-ID des
+# Korpus. Rueckgabe (root, gespeicherte_id): gespeicherte_id ist die
+# WP+Sitzungsnummer-ID (z.B. "21090"), unter der Archiv-Datei UND spaeter
+# protokoll:*/word:*-Eintraege abgelegt werden sollen - Aufrufer duerfen die
+# uebergebene id selbst dafuer NICHT mehr verwenden (siehe setze_meta_id.py
+# fuer den Hintergrund zu den zwei getrennten ID-Raeumen). Fallback auf die
+# DIP-ID nur, wenn sich die WP+Sitzungsnummer-ID nicht ermitteln laesst (z.B.
+# altes Flat-Text-Format ohne passende Metadaten).
 def get(id):
 
     metadata = _get_metadata(id)
@@ -66,10 +97,11 @@ def get(id):
         response = get_url_content(url)
 
     if response and response.status_code == 200:
-        filename = save(id, response)
-        return parse(filename)
+        gespeicherte_id = _komponierte_id(metadata) or str(id)
+        filename = save(gespeicherte_id, response)
+        return parse(filename), gespeicherte_id
     else:
-        return None
+        return None, None
 
 
 #Parse XML

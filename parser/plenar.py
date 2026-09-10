@@ -27,19 +27,30 @@ def main():
     new_id = find_new_doc(old_id)
 
     if new_id:
-        
-        xml_file = xml_processing.get(new_id)
+
+        # xml_processing.get() liefert die WP+Sitzungsnummer-ID (z.B. "21090")
+        # zurueck, unter der Archiv-Datei und Korpus-Eintraege abgelegt werden -
+        # new_id (die DIP-API-interne ID) wird ab hier nur noch fuer
+        # increase_current_id() gebraucht (das ist der Suchcursor-Raum von
+        # find_new_doc(), ein eigener, unabhaengiger ID-Raum). Siehe
+        # xml_processing.get()/setze_meta_id.py fuer den Hintergrund.
+        xml_file, protokoll_id = xml_processing.get(new_id)
 
         if xml_file is not None:
-            logging.info('Sitzung mit der ID ' + str(new_id) +  ' gefunden')
-            new_words = process_woerter(xml_file, new_id)
+            logging.info('Sitzung mit der ID ' + str(protokoll_id) +  ' gefunden')
+
+            metadata = xml_processing.get_protokoll_metadata(xml_file)
+            if metadata:
+                r.hset('protokoll:' + protokoll_id, mapping=metadata)
+
+            new_words = process_woerter(xml_file, protokoll_id)
             if len(new_words) == 0:
                 logging.debug('Es wurde kein neues Wort hinzugefügt.')
-                exit   
+                exit
             else:
-                prune(new_words, new_id)
+                prune(new_words, protokoll_id)
                 increase_current_id(new_id)
-             
+
             logging.info("Es wurden " + str(len(new_words)) + " neue Wörter hinzugefügt.")
 
         else:
