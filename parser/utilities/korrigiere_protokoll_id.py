@@ -43,12 +43,31 @@ def _korrekte_id_aus_hash(falsche_id):
     return '{:02d}{:03d}'.format(wahlperiode, protokollnummer)
 
 
-def _keys_mit_id(prefix, falsche_id):
+# Sucht per SCAN alle Keys eines Prefixes (z.B. "word:") mit passendem
+# 'id'-Feld. Bewusst per Pipeline in Batches statt einem HGET-Roundtrip pro
+# Key - bei ~1,3 Mio. word:*-Keys (siehe STATUS.md) waere ein einzelner
+# Roundtrip pro Key spuerbar langsam (Minuten statt Sekunden). count=1000
+# reduziert zusaetzlich die Anzahl der SCAN-Cursor-Roundtrips selbst.
+def _keys_mit_id(prefix, falsche_id, batch_size=2000):
     treffer = []
-    for key in r.scan_iter(match=prefix + '*'):
-        wert = r.hget(key, 'id')
-        if wert and wert.decode('utf-8') == falsche_id:
-            treffer.append(key)
+    batch = []
+
+    def _filtere(batch):
+        pipe = r.pipeline()
+        for key in batch:
+            pipe.hget(key, 'id')
+        werte = pipe.execute()
+        return [key for key, wert in zip(batch, werte) if wert and wert.decode('utf-8') == falsche_id]
+
+    for key in r.scan_iter(match=prefix + '*', count=1000):
+        batch.append(key)
+        if len(batch) >= batch_size:
+            treffer.extend(_filtere(batch))
+            batch = []
+
+    if batch:
+        treffer.extend(_filtere(batch))
+
     return treffer
 
 
