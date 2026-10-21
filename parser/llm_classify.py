@@ -6,9 +6,7 @@ import anthropic
 from pydantic import BaseModel
 from typing import List, Literal
 
-MODEL = 'claude-haiku-4-5'  # guenstig, fuer diese gebundene Klassifikationsaufgabe ausreichend;
-                            # bei Qualitaetsproblemen (z.B. Faelle wie Altwohnungsmieten/-mieter)
-                            # einzeiliger Wechsel auf 'claude-sonnet-5'
+MODEL = 'claude-sonnet-5-5'  
 MAX_TOKENS = 12000
 
 # Obergrenze pro API-Aufruf, unabhaengig davon wie viele neue Woerter an einem
