@@ -34,8 +34,8 @@ class KlassifikationsAntwort(BaseModel):
 
 
 SYSTEM_PROMPT = (
-    "Du bist ein Linguistik-Assistent fuer deutsche Bundestagsprotokolle. Du bekommst "
-    "eine Liste deutscher Woerter, jedes mit dem Satz, in dem es vorkam. Fuer jedes Wort "
+    "Du bist ein Linguistik-Assistent fuer Protokolle (Stenografische Berichte) des Deutschen Bundestags. "
+    "Du bekommst eine Liste deutscher Woerter, jedes mit dem Satz, in dem es vorkam. Fuer jedes Wort "
     "bestimmst du:\n"
     "1. wortart: 'Nomen', 'Verb', 'Adjektiv', 'Adverb' oder 'Sonstiges' - die tatsaechliche "
     "Wortart im Satzkontext. Gross-/Kleinschreibung im Originaltext ist NICHT zuverlaessig "
