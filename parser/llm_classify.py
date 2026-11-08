@@ -2,12 +2,33 @@ import logging
 import os
 import json
 
-import anthropic
 from pydantic import BaseModel
 from typing import List, Literal
 
-MODEL = 'claude-sonnet-5-5'  
+# Anbieter-Umschaltung per .env (testweise OpenAI statt Anthropic), ohne
+# Code-Aenderung auf dem Server: LLM_PROVIDER='openai' setzen. Default bleibt
+# 'anthropic', damit ein git pull allein am Produktivverhalten nichts aendert.
+# Prompt, Schema und die komplette Nachbearbeitung in _classify_batch() sind
+# fuer beide Anbieter identisch - nur der eigentliche API-Aufruf unterscheidet
+# sich (_call_anthropic/_call_openai).
+#
+# WICHTIG: erst zur Laufzeit lesen (_provider()/_openai_model()), nicht beim
+# Import - plenar.py u.a. rufen load_dotenv() erst NACH ihren Imports auf, ein
+# Modul-Level-os.environ.get() saehe die .env-Werte also noch nicht.
+def _provider():
+    return os.environ.get('LLM_PROVIDER', 'anthropic').strip().lower()
+
+
+def _openai_model():
+    return os.environ.get('OPENAI_MODEL', 'gpt-5')
+
+
+MODEL = 'claude-sonnet-5-5'
 MAX_TOKENS = 12000
+# OpenAI-Reasoning-Modelle zaehlen ihre (unsichtbaren) Reasoning-Tokens in
+# max_output_tokens mit - bei gleichem Limit wie Anthropic droht sonst
+# derselbe Abbruch mitten im JSON wie beim urspruenglichen BATCH_SIZE-Problem.
+OPENAI_MAX_OUTPUT_TOKENS = 32000
 
 # Obergrenze pro API-Aufruf, unabhaengig davon wie viele neue Woerter an einem
 # Tag insgesamt auftauchen (beobachtet: 254 Kandidaten in einem Aufruf haben
@@ -84,11 +105,67 @@ SYSTEM_PROMPT = (
 def _get_client():
     global _client
     if _client is None:
-        api_key = os.environ.get('ANTHROPIC_API_KEY')
-        if not api_key:
-            raise RuntimeError('ANTHROPIC_API_KEY ist nicht gesetzt (.env pruefen)')
-        _client = anthropic.Anthropic(api_key=api_key)
+        if _provider() == 'anthropic':
+            import anthropic
+            api_key = os.environ.get('ANTHROPIC_API_KEY')
+            if not api_key:
+                raise RuntimeError('ANTHROPIC_API_KEY ist nicht gesetzt (.env pruefen)')
+            _client = anthropic.Anthropic(api_key=api_key)
+        elif _provider() == 'openai':
+            import openai
+            api_key = os.environ.get('OPENAI_API_KEY')
+            if not api_key:
+                raise RuntimeError('OPENAI_API_KEY ist nicht gesetzt (.env pruefen)')
+            _client = openai.OpenAI(api_key=api_key)
+        else:
+            raise RuntimeError(f"Unbekannter LLM_PROVIDER {_provider()!r} (erlaubt: 'anthropic', 'openai')")
     return _client
+
+
+# Beide _call_*-Funktionen liefern ein KlassifikationsAntwort-Objekt oder
+# werfen - gleiche Fehlersemantik wie bisher (Aufrufer faellt auf Export ohne
+# Lemma-Abgleich zurueck).
+def _call_anthropic(client, user_content):
+    response = client.messages.parse(
+        model=MODEL,
+        max_tokens=MAX_TOKENS,
+        system=SYSTEM_PROMPT,
+        messages=[{'role': 'user', 'content': user_content}],
+        output_format=KlassifikationsAntwort,
+    )
+
+    if response.stop_reason == 'refusal':
+        raise RuntimeError('Anthropic-Antwort refused')
+
+    parsed = response.parsed_output
+    if parsed is None:
+        raise RuntimeError(f'Anthropic-Antwort nicht parsebar (stop_reason={response.stop_reason!r})')
+    return parsed
+
+
+def _call_openai(client, user_content):
+    response = client.responses.parse(
+        model=_openai_model(),
+        max_output_tokens=OPENAI_MAX_OUTPUT_TOKENS,
+        instructions=SYSTEM_PROMPT,
+        input=user_content,
+        text_format=KlassifikationsAntwort,
+        store=False,
+    )
+
+    if response.status == 'incomplete':
+        grund = response.incomplete_details.reason if response.incomplete_details else None
+        raise RuntimeError(f'OpenAI-Antwort unvollstaendig (reason={grund!r})')
+
+    for item in response.output:
+        for content in getattr(item, 'content', None) or []:
+            if getattr(content, 'type', None) == 'refusal':
+                raise RuntimeError(f'OpenAI-Antwort refused: {content.refusal!r}')
+
+    parsed = response.output_parsed
+    if parsed is None:
+        raise RuntimeError(f'OpenAI-Antwort nicht parsebar (status={response.status!r})')
+    return parsed
 
 
 # entries: Liste von Dicts mit 'word', 'satz'.
@@ -124,20 +201,11 @@ def _classify_batch(entries):
         for i, entry in enumerate(entries)
     ]
 
-    response = client.messages.parse(
-        model=MODEL,
-        max_tokens=MAX_TOKENS,
-        system=SYSTEM_PROMPT,
-        messages=[{'role': 'user', 'content': json.dumps({'words': payload_words}, ensure_ascii=False)}],
-        output_format=KlassifikationsAntwort,
-    )
-
-    if response.stop_reason == 'refusal':
-        raise RuntimeError('Anthropic-Antwort refused')
-
-    parsed = response.parsed_output
-    if parsed is None:
-        raise RuntimeError(f'Anthropic-Antwort nicht parsebar (stop_reason={response.stop_reason!r})')
+    user_content = json.dumps({'words': payload_words}, ensure_ascii=False)
+    if _provider() == 'openai':
+        parsed = _call_openai(client, user_content)
+    else:
+        parsed = _call_anthropic(client, user_content)
 
     result = {}
     for item in parsed.words:

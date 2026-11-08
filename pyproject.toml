@@ -16,6 +16,7 @@ dependencies = [
     "idna==3.4",
     "mastodon-py==1.8.1",
     "oauthlib==3.2.2",
+    "openai>=2.48.0",
     "packaging==23.1",
     "pur==7.1.0",
     "pydantic>=2.13.4",
